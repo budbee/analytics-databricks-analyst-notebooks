@@ -1,68 +1,17 @@
 # Databricks notebook source
-import pyspark.sql.functions as F
-from pyspark.sql.functions import col, lit
-from pyspark.sql.functions import *
+## order is N/A state
+## run every 10 mins
 
 # COMMAND ----------
 
-snowflake_user = dbutils.secrets.get("poc-analyst", "databricks-snowflake-user")
-snowflake_password = dbutils.secrets.get("poc-analyst", "databricks-snowflake-password")
-snowflake_database = "dw_dev" # <---- you probably want to change this
-snowflake_schema = "topaz" # <------ and this
-
-sf_options = {
-  "sfUrl": "bp67618.eu-west-1.snowflakecomputing.com"
-  , "sfUser": snowflake_user
-  , "sfPassword": snowflake_password
-  , "sfDatabase": snowflake_database
-  , "sfSchema": snowflake_schema
-  , "sfWarehouse": "dbricks_wh"
-}
-
-def readSnowflake(table):
-    return spark.read \
-  .format("snowflake") \
-  .options(**sf_options) \
-  .option("dbtable", table) \
-  .load()
-
-def writeSnowflake(df, tablename):
-
-    df.write \
-    .format('snowflake') \
-    .options(**sf_options) \
-    .option("dbtable", tablename) \
-    .mode('overwrite') \
-    .save()
-
-# COMMAND ----------
-
-jdbcHostname = "production-aurora-db-03.c24yqmofl8oi.eu-west-1.rds.amazonaws.com"
-jdbcPort = 3306
-
-# TODO: refactor these into metastore to avoid plaintext passwords
-jdbcUsername = dbutils.secrets.get("poc-analyst", "budbee-db-user")
-jdbcPassword = dbutils.secrets.get("poc-analyst", "budbee-db-password")
-
-def readJDBC(q, db):
-    readConfig = {
-        "user" : jdbcUsername
-        , "password" : jdbcPassword
-        , "driver" : "com.mysql.jdbc.Driver"
-        , "url": f"jdbc:mysql://{jdbcHostname}:{jdbcPort}/{db}"
-        , "fetchsize": 2000
-        , "dbtable": f"({q}) as foo"
-    }
-    
-    return spark.read.format("jdbc").options(**readConfig).load()
-
+# MAGIC %run ./config
 
 # COMMAND ----------
 
 
 query = """
 SELECT DISTINCT 
-       o.created_at AS order_created_date,
+       date(o.created_at) AS order_created_date,
        b.external_name AS merchant,
        pcz.title AS city_pcz,
        w.code AS terminal_code,
@@ -160,13 +109,17 @@ orders_in_na_df = readJDBC(query, 'budbee')
 
 # COMMAND ----------
 
-orders_in_na_df_grouped = orders_in_na_df.groupBy("order_created_date","merchant", "city_pcz", "terminal_code", "terminal_country_code", "destination_country_code", "tag_id", "buyer_id", "delivery_type").agg(countDistinct("order_id").alias("orders"), countDistinct("parcel_id").alias("parcels"),countDistinct("scanned_parcel").alias("scanned_parcels"),
-                                   countDistinct("scanned_at_destination_terminal_parcel").alias("scanned_at_destination_terminal_parcels"),
-                                   countDistinct("scanned_at_destination_country_parcel").alias("scanned_at_destination_country_parcels"),
-                                   countDistinct("scanned_at_NL_BE_country_parcel").alias("scanned_at_NL_BE_country_parcels")       
-                                        )
-df_main = orders_in_na_df_grouped.withColumn('timestamp', F.current_timestamp())
+orders_in_na_df_grouped_terminal_merchant = orders_in_na_df.groupBy("merchant", "terminal_code", "destination_country_code", "tag_id", "buyer_id", "delivery_type").agg(F.countDistinct("order_id").alias("orders"), F.countDistinct("parcel_id").alias("parcels"),F.countDistinct("scanned_parcel").alias("scanned_parcels"),
+                                   F.countDistinct("scanned_at_destination_terminal_parcel").alias("scanned_at_destination_terminal_parcels"),
+                                   F.countDistinct("scanned_at_destination_country_parcel").alias("scanned_at_destination_country_parcels"),
+                                   F.countDistinct("scanned_at_NL_BE_country_parcel").alias("scanned_at_NL_BE_country_parcels")       
+                                        ).withColumn('timestamp', F.current_timestamp())
 
-df_main.display()
+orders_in_na_df_helsinki = orders_in_na_df.groupBy("order_created_date", "merchant", "terminal_code", "destination_country_code", "tag_id", "buyer_id", "delivery_type").agg(F.countDistinct("order_id").alias("orders"), F.countDistinct("parcel_id").alias("parcels"),F.countDistinct("scanned_parcel").alias("scanned_parcels"),
+                                   F.countDistinct("scanned_at_destination_terminal_parcel").alias("scanned_at_destination_terminal_parcels"),
+                                   F.countDistinct("scanned_at_destination_country_parcel").alias("scanned_at_destination_country_parcels"),
+                                   F.countDistinct("scanned_at_NL_BE_country_parcel").alias("scanned_at_NL_BE_country_parcels")       
+                                        ).withColumn('timestamp', F.current_timestamp()).where(orders_in_na_df.terminal_code == "HELSINKI")
 
-writeSnowflake(df_main, 'orders_in_na_WIP')
+writeSnowflake(orders_in_na_df_grouped_terminal_merchant, 'orders_in_na')
+writeSnowflake(orders_in_na_df_helsinki, 'orders_in_na_helsinki')
