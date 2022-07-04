@@ -163,6 +163,10 @@ orders_in_na_df = readJDBC(query, 'budbee')
 orders_in_na_df_grouped = orders_in_na_df.groupBy("order_created_date","merchant", "city_pcz", "terminal_code", "terminal_country_code", "destination_country_code", "tag_id", "buyer_id", "delivery_type").agg(countDistinct("order_id").alias("orders"), countDistinct("parcel_id").alias("parcels"),countDistinct("scanned_parcel").alias("scanned_parcels"),
                                    countDistinct("scanned_at_destination_terminal_parcel").alias("scanned_at_destination_terminal_parcels"),
                                    countDistinct("scanned_at_destination_country_parcel").alias("scanned_at_destination_country_parcels"),
-                                   countDistinct("scanned_at_NL_BE_country_parcel").alias("scanned_at_NL_BE_country_parcels")        
-                                            )
-writeSnowflake(orders_in_na_df_grouped, 'orders_in_na_WIP')
+                                   countDistinct("scanned_at_NL_BE_country_parcel").alias("scanned_at_NL_BE_country_parcels")       
+                                        )
+df_main = orders_in_na_df_grouped.withColumn('timestamp', F.current_timestamp())
+
+df_main.display()
+
+writeSnowflake(df_main, 'orders_in_na_WIP')
