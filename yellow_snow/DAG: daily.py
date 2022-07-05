@@ -108,17 +108,17 @@ query6 ="""SELECT
 df_old_box_parcels_that_are_not_delivered = readJDBC(query6, 'budbee')
 
 
-#query7 = """SELECT 
-#                DATE(sent) as date_sent,
-#                CONCAT('W', cast(weekofyear(sent) as CHAR),'-',cast(year(sent) AS CHAR)) AS week_sent,
-#                COUNT(CASE WHEN delivered IS NOT NULL THEN id END) AS push_delivered,
-#                COUNT(ID) AS push_sent,
-#                UTC_TIMESTAMP() as timestamp
-#            FROM sms_notifications USE INDEX(IDX_message_id)
-#            WHERE sent >= date_add(current_date, INTERVAL -1 MONTH)
-#              AND message_id LIKE 'projects/%' -- only select push notification - criteria confirmed by Oskar Walker
-#            GROUP BY 1,2
-#          """
+query7 = """SELECT
+                DATE(sent) as date_sent,
+                CONCAT('W', CAST(weekofyear(sent) as CHAR),'-',CAST(year(sent) AS CHAR)) AS week_sent,
+                COUNT(CASE WHEN delivered IS NOT NULL THEN id END) AS push_delivered,
+                COUNT(ID) AS push_sent,
+                UTC_TIMESTAMP() as timestamp
+            FROM sms_notifications USE INDEX(IDX_message_id)
+            WHERE sent >= date_add(current_date, INTERVAL -1 MONTH)
+                  AND binary substring(message_id, 1, 9) = 'projects/'
+            GROUP BY 1,2
+          """
 
 df_push_notification_delivered = readJDBC(query7, 'budbee')
 
@@ -287,4 +287,4 @@ writeSnowflake(df_eta_vs_time_of_arrival, 'eta_vs_time_of_arrival')
 writeSnowflake(df_eta_vs_time_of_arrival_per_city_last_week, 'eta_vs_time_of_arrival_per_city_last_week')
 
 writeSnowflake(df_average_rating_per_merchant_zone, 'average_rating_per_merchant_zone')
-#writeSnowflake(df_push_notification_delivered, 'push_notification_delivered')
+writeSnowflake(df_push_notification_delivered, 'push_notification_delivered')
