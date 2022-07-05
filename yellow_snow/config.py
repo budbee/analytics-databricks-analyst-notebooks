@@ -51,7 +51,24 @@ def readJDBC(q, db):
         , "url": f"jdbc:mysql://{jdbcHostname}:{jdbcPort}/{db}"
         , "fetchsize": 2000
         , "dbtable": f"({q}) as foo"
+        , "pushDownPredicate": False
     }
     
     return spark.read.format("jdbc").options(**readConfig).load()
 
+def readJDBC_part(q, db, partitionColumn, lowerBound, upperBound):
+    readConfig = {
+        "user" : jdbcUsername
+        , "password" : jdbcPassword
+        , "driver" : "com.mysql.jdbc.Driver"
+        , "url": f"jdbc:mysql://{jdbcHostname}:{jdbcPort}/{db}"
+        , "fetchsize": 2000
+        , "dbtable": f"({q}) as foo"
+        , "pushDownPredicate": False
+        , "partitionColumn": partitionColumn
+        , "lowerBound": lowerBound
+        , "upperBound": upperBound
+        , "numPartitions": 8
+    }
+    
+    return spark.read.format("jdbc").options(**readConfig).load()
