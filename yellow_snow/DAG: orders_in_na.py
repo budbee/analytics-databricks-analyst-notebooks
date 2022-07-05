@@ -1,12 +1,18 @@
 # Databricks notebook source
+## Orders & Parcels is N/A state
+## Run every 10 mins
+
+# COMMAND ----------
+
 # MAGIC %run ./config
 
 # COMMAND ----------
 
+## EXTRACT
 
 query = """
 SELECT DISTINCT 
-       o.created_at AS order_created_date,
+       date(o.created_at) AS order_created_date,
        b.external_name AS merchant,
        pcz.title AS city_pcz,
        w.code AS terminal_code,
@@ -100,15 +106,28 @@ WHERE o.created_at >= DATE_ADD(utc_date(), INTERVAL - 14 DAY)
           AND r.due_date = utc_date())
       ))"""
 
-orders_in_na_df = readJDBC(query, 'budbee')
+df_orders_in_na = readJDBC(query, 'budbee')
 
 # COMMAND ----------
 
-orders_in_na_df_grouped = orders_in_na_df.groupBy("order_created_date","merchant", "city_pcz", "terminal_code", "terminal_country_code", "destination_country_code", "tag_id", "buyer_id", "delivery_type").agg(countDistinct("order_id").alias("orders"), countDistinct("parcel_id").alias("parcels"),countDistinct("scanned_parcel").alias("scanned_parcels"),
-                                   countDistinct("scanned_at_destination_terminal_parcel").alias("scanned_at_destination_terminal_parcels"),
-                                   countDistinct("scanned_at_destination_country_parcel").alias("scanned_at_destination_country_parcels"),
-                                   countDistinct("scanned_at_NL_BE_country_parcel").alias("scanned_at_NL_BE_country_parcels")       
-                                        )
-df_main = orders_in_na_df_grouped.withColumn('timestamp', F.current_timestamp())
+## TRANSFORM
 
-writeSnowflake(df_main, 'orders_in_na')
+df_orders_in_na_grouped_terminal_merchant = df_orders_in_na.groupBy("merchant", "terminal_code", "destination_country_code", "tag_id", "buyer_id", "delivery_type").agg(F.countDistinct("order_id").alias("orders"), F.countDistinct("parcel_id").alias("parcels"),F.countDistinct("scanned_parcel").alias("scanned_parcels"),
+                                   F.countDistinct("scanned_at_destination_terminal_parcel").alias("scanned_at_destination_terminal_parcels"),
+                                   F.countDistinct("scanned_at_destination_country_parcel").alias("scanned_at_destination_country_parcels"),
+                                   F.countDistinct("scanned_at_NL_BE_country_parcel").alias("scanned_at_NL_BE_country_parcels")       
+                                        ).withColumn('timestamp', F.current_timestamp())
+
+## only 2 dashboards for Helsinki require dates
+df_orders_in_na_helsinki = df_orders_in_na.groupBy("order_created_date", "merchant", "terminal_code", "destination_country_code", "tag_id", "buyer_id", "delivery_type").agg(F.countDistinct("order_id").alias("orders"), F.countDistinct("parcel_id").alias("parcels"),F.countDistinct("scanned_parcel").alias("scanned_parcels"),
+                                   F.countDistinct("scanned_at_destination_terminal_parcel").alias("scanned_at_destination_terminal_parcels"),
+                                   F.countDistinct("scanned_at_destination_country_parcel").alias("scanned_at_destination_country_parcels"),
+                                   F.countDistinct("scanned_at_NL_BE_country_parcel").alias("scanned_at_NL_BE_country_parcels")       
+                                        ).withColumn('timestamp', F.current_timestamp()).where(df_orders_in_na.terminal_code == "HELSINKI")
+
+# COMMAND ----------
+
+## LOAD
+
+writeSnowflake(df_orders_in_na_grouped_terminal_merchant, 'orders_in_na')
+writeSnowflake(df_orders_in_na_helsinki, 'orders_in_na_helsinki')
