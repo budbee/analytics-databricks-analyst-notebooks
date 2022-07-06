@@ -6,15 +6,11 @@ from pyspark.sql.functions import col, lit, when
 
 snowflake_user = dbutils.secrets.get("poc-analyst", "databricks-snowflake-user")
 snowflake_password = dbutils.secrets.get("poc-analyst", "databricks-snowflake-password")
-snowflake_database = "dw_dev"
-snowflake_schema = "topaz"
 
 sf_options = {
   "sfUrl": "bp67618.eu-west-1.snowflakecomputing.com"
   , "sfUser": snowflake_user
   , "sfPassword": snowflake_password
-  , "sfDatabase": snowflake_database
-  , "sfSchema": snowflake_schema
   , "sfWarehouse": "dbricks_wh"
 }
 
@@ -25,13 +21,14 @@ def readSnowflake(table):
   .option("dbtable", table) \
   .load()
 
-def writeSnowflake(df, tablename):
-
+def writeSnowflake(df, tablename, db="dw_dev", schema="topaz"):
     df.write \
-    .format('snowflake') \
+    .format("snowflake") \
     .options(**sf_options) \
     .option("dbtable", tablename) \
-    .mode('overwrite') \
+    .option("sfDatabase", db) \
+    .option("sdSchema", schema)
+    .mode("overwrite") \
     .save()
 
 # COMMAND ----------
