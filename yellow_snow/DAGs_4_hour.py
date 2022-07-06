@@ -29,7 +29,6 @@ group by c.date, pc.city, b.id
 """
 
 on_demand_pickups_df = readJDBC(query, 'budbee')
-on_demand_pickups_df.display()
 #writeSnowflake(on_demand_pickups_df, 'on_demand_pickups')
 
 
