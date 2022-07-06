@@ -1,6 +1,12 @@
 # Databricks notebook source
-## Terminal DAGs 
-## Run every minute
+# MAGIC %md
+# MAGIC # TERMINAL DAG: 1 minute
+# MAGIC This notebook covers the DAGs/queries that are used at terminals
+# MAGIC ## DAGs
+# MAGIC * generalized_orders_booked
+# MAGIC * consignment_limit
+# MAGIC * routes_saved_today
+# MAGIC * routing_deadline_today_all_zones
 
 # COMMAND ----------
 
@@ -44,7 +50,7 @@ query2 = """SELECT
 df_consignment_limit = readJDBC(query2, 'budbee')
 
 query3 = """SELECT
-                cscon.consignment_id AS consignemtnStopId,
+                cscon.consignment_id AS consignmentStopId,
                 cs.route_id as routeId,
                 r.city as city
             FROM consignments AS con
@@ -93,7 +99,7 @@ df_orders_booked_grouped = df_orders_booked.groupBy("code", "terminaCountryCode"
 
 df_generalized_orders_booked = df_orders_booked_grouped.withColumn('orderCount', df_orders_booked_grouped.consignments - df_orders_booked_grouped.cancelledOrderCount).withColumn('timestamp', F.current_timestamp()).withColumn('routesSaved', df_orders_booked_grouped.stops >0).drop("consignments", "stops")
 
-df_routes_saved_grouped = df_routes_saved.groupBy("city").agg(F.countDistinct("consignemtnStopId").alias("consignments"), F.countDistinct("routeId").alias("routes"))
+df_routes_saved_grouped = df_routes_saved.groupBy("city").agg(F.countDistinct("consignmentStopId").alias("consignments"), F.countDistinct("routeId").alias("routes"))
 
 df_routes_saved_today = df_routes_saved_grouped.withColumn('timestamp', F.current_timestamp()).withColumn('routesSaved', df_routes_saved_grouped.consignments >0).drop("consignments")
 

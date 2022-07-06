@@ -1,6 +1,20 @@
 # Databricks notebook source
-## Daily DAGs 
-## Run once a day at 7.00
+# MAGIC %md
+# MAGIC # DAILY: at 6.00
+# MAGIC This notebook covers the DAGs/queries that should run daily
+# MAGIC ## DAGs
+# MAGIC * terminal_list
+# MAGIC * merchants_with_on_demand_pickups
+# MAGIC * consumers_push_activated
+# MAGIC * deliveries_done_to_neighbours
+# MAGIC * timeslot_success_over_time
+# MAGIC * old_box_parcels_that_are_not_delivered
+# MAGIC * eta_vs_time_of_arrival
+# MAGIC * eta_vs_time_of_arrival_per_city_last_week
+# MAGIC * average_rating_per_merchant_zone
+# MAGIC * push_notification_delivered
+# MAGIC * average_rating_per_week_per_merchant_last_12_months
+# MAGIC * average_rating_per_day_and_ecommerce_buyer_last_week
 
 # COMMAND ----------
 
@@ -268,9 +282,9 @@ df_average_rating_per_merchant_zone = df_rating_per_merchant_zone.groupBy("id","
 
 df_deliveries_done_to_neighbours = df_delivery_done_to_neighbours.groupBy("date").agg(F.countDistinct("deliveried_to_neighbour").alias("deliveried_to_neighbour")).withColumn('timestamp', F.current_timestamp())
 
-df_avegare_rating_per_day_and_ecommerce_buyer_last_week = df_rating_per_day_and_ecommerce_buyer_last_week.groupBy("date","name","external_name").agg(F.avg("score").alias("avg_rating"), F.count("ratingId").alias("rated"), F.count("consignmentId").alias("consignments")).withColumn('timestamp', F.current_timestamp())
+df_average_rating_per_day_and_ecommerce_buyer_last_week = df_rating_per_day_and_ecommerce_buyer_last_week.groupBy("date","name","external_name").agg(F.avg("score").alias("avg_rating"), F.count("ratingId").alias("rated"), F.count("consignmentId").alias("consignments")).withColumn('timestamp', F.current_timestamp())
 
-df_avegare_rating_per_week_per_merchant_last_12_months = df_rating_per_week_per_merchant_last_12_months.groupBy("id","name","week").agg(F.avg("rating").alias("avg_rating")).withColumn('timestamp', F.current_timestamp())
+df_average_rating_per_week_per_merchant_last_12_months = df_rating_per_week_per_merchant_last_12_months.groupBy("id","name","week").agg(F.avg("rating").alias("avg_rating")).withColumn('timestamp', F.current_timestamp())
 
 
 # COMMAND ----------
@@ -280,11 +294,12 @@ df_avegare_rating_per_week_per_merchant_last_12_months = df_rating_per_week_per_
 writeSnowflake(df_terminals, 'terminal_list')
 writeSnowflake(df_merchants_with_on_demand_pickups, 'merchants_with_on_demand_pickups')
 writeSnowflake(df_consumers_push_activated, 'consumers_push_activated')
-
+writeSnowflake(df_average_rating_per_merchant_zone, 'average_rating_per_merchant_zone')
+writeSnowflake(df_deliveries_done_to_neighbours, 'deliveries_done_to_neighbours')
 writeSnowflake(df_old_box_parcels_that_are_not_delivered, 'old_box_parcels_that_are_not_delivered')
 writeSnowflake(df_timeslot_success_over_time, 'timeslot_success_over_time')
 writeSnowflake(df_eta_vs_time_of_arrival, 'eta_vs_time_of_arrival')
 writeSnowflake(df_eta_vs_time_of_arrival_per_city_last_week, 'eta_vs_time_of_arrival_per_city_last_week')
-
-writeSnowflake(df_average_rating_per_merchant_zone, 'average_rating_per_merchant_zone')
+writeSnowflake(df_average_rating_per_week_per_merchant_last_12_months, 'average_rating_per_week_per_merchant_last_12_months')
+writeSnowflake(df_average_rating_per_day_and_ecommerce_buyer_last_week, 'average_rating_per_day_and_ecommerce_buyer_last_week')
 writeSnowflake(df_push_notification_delivered, 'push_notification_delivered')

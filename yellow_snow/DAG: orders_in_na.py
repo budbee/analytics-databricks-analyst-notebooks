@@ -1,6 +1,10 @@
 # Databricks notebook source
-## Orders & Parcels is N/A state
-## Run every 10 mins
+# MAGIC %md
+# MAGIC # ORDERS IN N/A: 10 minutes
+# MAGIC This notebook covers the DAGs/queries that are used for N/As 
+# MAGIC ## DAGs
+# MAGIC * orders_in_na
+# MAGIC * orders_in_na_helsinki
 
 # COMMAND ----------
 
