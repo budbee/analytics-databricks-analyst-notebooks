@@ -1,6 +1,20 @@
 # Databricks notebook source
-# Set refresh rate at 1 hour
-# This covers the DAGs/queries that are refreshed more than 30 mins to less than 4 hours in Klipfolio
+# MAGIC %md
+# MAGIC # 1 Hour
+# MAGIC This notebook covers the DAGs/queries that have an hourly update frequency
+# MAGIC ## DAGs
+# MAGIC * counting_number_of_budbee_plus_membership
+# MAGIC * app_consumer_orders_stats_by_country
+# MAGIC * orders_created_per_day_in_ecommerce
+# MAGIC * schedule_of_return_merchant_routes_per_terminal_today
+# MAGIC * box_orders_created_per_day
+# MAGIC * locker_information
+# MAGIC * consumers_with_app_over_time
+# MAGIC * counting_new_cancellations
+# MAGIC * lockers_current_degree_of_filling
+# MAGIC * volume_statistics_today_per_country_and_city 
+# MAGIC * counting_new_subscriptions
+# MAGIC * failed_delivery_attempts_grouped_by_locker (direct query from Klipfolio)
 
 # COMMAND ----------
 
@@ -10,13 +24,12 @@
 
 # DAG: counting_number_of_budbee_plus_membership (budbee DB - consumer)
 query = """
-
 SELECT SUM(ts.active) AS Budbee_Plus_active,
        count(DISTINCT ts.consumer_id) AS Budbee_Plus_signed,
        now() as time_stamp
 FROM timeslot_subscription ts
 JOIN consumer c ON ts.consumer_id = c.id
-where ts.valid_to> now()
+WHERE ts.valid_to > now()
 """
 
 counting_number_of_budbee_plus_membership_df = readJDBC(query, 'consumers')
@@ -29,26 +42,26 @@ writeSnowflake(counting_number_of_budbee_plus_membership_df, 'counting_number_of
 # 6-7 mins
 query_sub1 = """
 SELECT
-             pcz.country_code AS country_code,
-             c.consumer_id    AS consumer_id,
-             count(o.id)      AS consumer_orders,
-             (CASE
-                  WHEN count(o.id) = 1 THEN TRUE
-                 END)         AS one_order_consumer,
+   pcz.country_code AS country_code,
+   c.consumer_id    AS consumer_id,
+   count(o.id)      AS consumer_orders,
+   (CASE
+        WHEN count(o.id) = 1 THEN TRUE
+       END)         AS one_order_consumer,
 
-             (CASE
-                  WHEN count(o.id) = 2 THEN TRUE
-                 END)         AS two_orders_consumer,
+   (CASE
+        WHEN count(o.id) = 2 THEN TRUE
+       END)         AS two_orders_consumer,
 
-             (CASE
-                  WHEN count(o.id) >= 3 THEN TRUE
-                 END)         AS three_and_more_orders_consumer
-         FROM consumers.consumer c
-                  JOIN consumers.consumer_order co ON c.id = co.consumer_id
-                  JOIN budbee.orders o ON co.order_id = o.id
-                  JOIN budbee.postal_code_zones pcz ON o.delivery_postal_code_zone_id = pcz.id
-         WHERE o.created_at >= ADDDATE(current_date,INTERVAL -12 MONTH)
-         GROUP BY c.consumer_id,pcz.country_code
+   (CASE
+        WHEN count(o.id) >= 3 THEN TRUE
+       END)         AS three_and_more_orders_consumer
+FROM consumers.consumer c
+        JOIN consumers.consumer_order co ON c.id = co.consumer_id
+        JOIN budbee.orders o ON co.order_id = o.id
+        JOIN budbee.postal_code_zones pcz ON o.delivery_postal_code_zone_id = pcz.id
+WHERE o.created_at >= ADDDATE(current_date,INTERVAL -12 MONTH)
+GROUP BY c.consumer_id,pcz.country_code
 """
 
 query_sub2 = """
@@ -415,7 +428,7 @@ writeSnowflake(volume_statistics_today_per_country_and_city_df, 'volume_statisti
 
 # COMMAND ----------
 
-# DAG: consumers_with_app_over_time
+# DAG: failed_delivery_attempts_grouped_by_locker (direct query from Klipfolio)
 query11 = """
 SELECT l.identifier,
        l.name,
@@ -452,8 +465,8 @@ GROUP BY l.id
 ORDER BY count(id) DESC
 """
 
-consumers_with_app_over_time_df = readJDBC(query11, 'budbee')
-writeSnowflake(consumers_with_app_over_time_df, 'consumers_with_app_over_time')
+failed_delivery_attempts_grouped_by_locker_df = readJDBC(query11, 'budbee')
+writeSnowflake(failed_delivery_attempts_grouped_by_locker_df, 'failed_delivery_attempts_grouped_by_locker')
 
 # COMMAND ----------
 

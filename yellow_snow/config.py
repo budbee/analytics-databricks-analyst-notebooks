@@ -56,7 +56,7 @@ def readJDBC(q, db):
     
     return spark.read.format("jdbc").options(**readConfig).load()
 
-def readJDBC_part(q, db, partitionColumn, lowerBound, upperBound):
+def readJDBC_part(q, db, partitionColumn, lowerBound, upperBound, numPartitions=4):
     readConfig = {
         "user" : jdbcUsername
         , "password" : jdbcPassword
@@ -68,7 +68,7 @@ def readJDBC_part(q, db, partitionColumn, lowerBound, upperBound):
         , "partitionColumn": partitionColumn
         , "lowerBound": lowerBound
         , "upperBound": upperBound
-        , "numPartitions": 8
+        , "numPartitions": numPartitions
     }
     
     return spark.read.format("jdbc").options(**readConfig).load()
