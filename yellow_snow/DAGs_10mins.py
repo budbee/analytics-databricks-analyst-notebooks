@@ -1,6 +1,6 @@
 # Databricks notebook source
 # Set refresh rate at 10 mins
-# This covers the DAGs/queries that are refreshed less than 30 mins in Klipfolio
+# This covers the DAGs/queries that are refreshed equal/less than 30 mins in Klipfolio
 
 # COMMAND ----------
 
@@ -76,43 +76,71 @@ writeSnowflake(planned_dorapp_box_df, 'planned_dorapp_box')
 
 # COMMAND ----------
 
-# DAG: orders_created
-# This was rewritten to combine 2 existing DAGs: orders_created_last_48_hours_per_day_in_ecommerce.sql and orders_created_per_day_per_city.sql
-# 2 mins
+# DAG: orders_created_last_48_hours_per_day_in_ecommerce
 query3 = """
-
 select
-count(case when bt.tag_id = 2 then o.id end) as orders_ecommerce,
-count(o.id) as all_orders,
-date(CONVERT_TZ(o.created_at, "UTC", "Europe/Stockholm")) AS date_order_created,
-HOUR(CONVERT_TZ(o.created_at, "UTC", "Europe/Stockholm")) AS hour_order_created,
-w.code,
-pcz.country_code,
-now() as time_stamp
+    count(o.id),
+    CONVERT_TZ(o.created_at, "UTC", "Europe/Stockholm") as order_created_at,
+    now() as time_stamp
 from orders as o
     join buyers as b on o.buyer_id = b.id
     join buyer_tags as bt on b.id = bt.buyer_id
-    join postal_code_zones AS pcz ON pcz.id = o.delivery_postal_code_zone_id
-    join warehouses w ON pcz.terminal_id = w.id
-where o.cancellation_id is null
-and o.created_at > DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
-GROUP BY date(o.created_at), HOUR(o.created_at), w.code
-order by o.created_at asc
+where bt.tag_id = 2
+    and o.cancellation_id is null
+    and o.created_at > DATE_SUB(current_time(), INTERVAL 48 HOUR)
+GROUP BY DAY(o.created_at), HOUR(o.created_at)
+order by o.created_at asc"""
+
+orders_created_last_48_hours_per_day_in_ecommerce_df = readJDBC(query3, 'budbee')
+writeSnowflake(orders_created_last_48_hours_per_day_in_ecommerce_df, 'orders_created_last_48_hours_per_day_in_ecommerce')
+
+# COMMAND ----------
+
+# DAG: orders_created_per_day_per_city
+query4 = """
+SELECT
+    count(o.id),
+    date(o.created_at),
+    w.code,
+    pcz.country_code,
+    now() as time_stamp
+FROM orders AS o USE INDEX(IDX_order_created_at) -- add index to increase performance
+  	JOIN buyers AS b ON o.buyer_id = b.id
+  	JOIN postal_code_zones AS pcz ON pcz.id = o.delivery_postal_code_zone_id
+    JOIN warehouses w ON pcz.terminal_id = w.id
+WHERE o.cancellation_id IS NULL
+  	AND o.created_at > DATE_SUB(CURRENT_DATE(), INTERVAL 14 day)
+GROUP BY date(o.created_at), w.code
+ORDER BY o.created_at desc
 """
 
-orders_created_per_day_hour_city_df = readJDBC(query3, 'budbee')
-
-writeSnowflake(orders_created_per_day_hour_city_df, 'orders_created_per_day_hour_city')
+orders_created_per_day_per_city_df = readJDBC(query4, 'budbee')
+writeSnowflake(orders_created_per_day_per_city_df, 'orders_created_per_day_per_city')
 
 # COMMAND ----------
 
 # DAG: cancellation_per_day
-# 1,5 mins
-query4 = """
+query_sub = """
+select 
+    min(id) as min_id,
+    max(id) as max_id
+    from routes
+    where due_date > DATE_SUB(utc_date(),INTERVAL 2 MONTH)
+"""
 
+
+route_id_df = readJDBC(query_sub, 'budbee')
+min_id = route_id_df.collect()[0][0]
+max_id = route_id_df.collect()[0][1]
+
+
+query_home = """
 SELECT
-    count(DISTINCT c.id) / count(DISTINCT con.id),
+    c.id as cancellation_id,
+    con.id as consignment_id,
     con.date,
+    r.due_date,
+    r.id as route_id,
     'Home' as delivery_type,
     now() as time_stamp
 FROM routes as r USE INDEX(IDX_due_date) -- add index but still run a bit slow
@@ -126,13 +154,17 @@ FROM routes as r USE INDEX(IDX_due_date) -- add index but still run a bit slow
 WHERE
   r.due_date > DATE_SUB(utc_date(),INTERVAL 2 MONTH)
   AND r.type="DISTRIBUTION"
-GROUP BY r.due_date
+"""
 
-UNION
+Home_cancellation_df = readJDBC_part(query_home, 'budbee', "route_id", min_id, max_id)
 
+query_box = """
 SELECT
-    count(DISTINCT c.id) / count(DISTINCT con.id),
+    c.id as cancellation_id,
+    con.id as consignment_id,
     date(t.date) as date,
+    r.due_date,
+    r.id as route_id,
     'Box' as delivery_type,
     now() as time_stamp
 FROM routes as r USE INDEX(IDX_due_date) -- add index but still run a bit slow
@@ -151,11 +183,17 @@ FROM routes as r USE INDEX(IDX_due_date) -- add index but still run a bit slow
 WHERE
         r.due_date > DATE_SUB(utc_date(),INTERVAL 2 MONTH)
   AND r.type="LOCKER"
-GROUP BY r.due_date"""
+"""
 
-cancellation_per_day_df = readJDBC(query4, 'budbee')
+
+Box_cancellation_df = readJDBC_part(query_box, 'budbee', "route_id", min_id, max_id)
+
+union_df = Home_cancellation_df.union(Box_cancellation_df)
+
+
+cancellation_per_day_df = union_df.groupby("due_date","delivery_type","time_stamp").agg(F.countDistinct("cancellation_id")/F.countDistinct("consignment_id").alias("cancellation_percent")).orderBy("due_date")
+
 writeSnowflake(cancellation_per_day_df, 'cancellation_per_day')
-
 
 # COMMAND ----------
 
@@ -718,11 +756,8 @@ writeSnowflake(billable_returns_attempts_today_per_country_df, 'billable_returns
 # COMMAND ----------
 
 # DAG: consumer_returns_today
-# 4mins
 query13 = """
 select
-    #count(p.id) as parcels,
-    #count(DISTINCT con.id) as consignments,
     p.id as parcel_id,
     con.id as consignment_id,
     pcz.title,
@@ -733,18 +768,16 @@ select
     pcz.terminal_id,
     o.buyer_id,
     now() as time_stamp
-from consignments as con
-         join orders as o on o.id  =con.order_id
+from (select * from consignments
+        where date = current_date()
+              and type="RETURN"
+              and cancellation_id is null) as con
+         join orders as o on o.id  =con.order_id and o.delivery_postal_code_zone_id!= 111
          join buyers as b on b.id = o.buyer_id
          join parcel_consignments as pc on pc.consignment_id = con.id
          join parcels as p on p.id = pc.parcel_id
-         join postal_code_zones as pcz on pcz.id = o.delivery_postal_code_zone_id
-where con.date = current_date()
-  and con.type="RETURN"
-  and o.delivery_postal_code_zone_id!= 111
-  and pcz.type = "TO_DOOR"
-  and con.cancellation_id is null
-# group by o.buyer_id, pcz.id
+         join postal_code_zones as pcz on pcz.id = o.delivery_postal_code_zone_id and binary pcz.type = "TO_DOOR"
+
 """
 
 
@@ -762,8 +795,7 @@ max_id = consignment_id_today_df.collect()[0][1]
 
 consumer_returns_today_df_temp = readJDBC_part(query13, 'budbee', "consignment_id", min_id, max_id)
 consumer_returns_today_df = consumer_returns_today_df_temp.groupby("buyer_id","external_name","postal_code_zone_id","title","country_code","city","terminal_id","time_stamp").agg(F.count("parcel_id").alias("parcels"),F.countDistinct("consignment_id").alias("consignments"))
-consumer_returns_today_df.display()
-# writeSnowflake(consumer_returns_today_df, 'consumer_returns_today')
+writeSnowflake(consumer_returns_today_df, 'consumer_returns_today')
 
 # COMMAND ----------
 
@@ -807,7 +839,6 @@ SELECT
     b.external_name,
     l.id as locker_id,
     w.name as terminal,
-    #count(o.id) AS parcels,
     o.id as order_id,
     pcz.country_code,
     now() as time_stamp
@@ -819,7 +850,6 @@ FROM orders AS o
 WHERE o.created_at BETWEEN date_sub(NOW(), INTERVAL 1 day) AND NOW()
     AND o.locker_id IS NOT NULL
     AND b.external_name not like '%Budbee Box%'
-#GROUP BY b.id, l.id, w.id, pcz.country_code
 """
 
 
@@ -889,32 +919,53 @@ writeSnowflake(box_returns_present_all_time_df, 'box_returns_present_all_time')
 # COMMAND ----------
 
 # DAG: box_order_progress_over_time
-# 3 mins
+# Currently it takes 2-3 mins to run
 query18 = """
 SELECT
-        date(o.created_at),
-        count(o.id) AS total_orders,
-        sum(CASE WHEN pba.picked_up IS NOT NULL THEN 1 ELSE 0 END) AS picked_up,
-        sum(CASE WHEN pba.picked_up IS NULL AND pba.id IS NOT NULL THEN 1 ELSE 0 END) AS in_locker,
-        sum(CASE WHEN pba.id IS NULL AND slog.id IS NOT NULL AND p.recall_reason IS NULL THEN 1 ELSE 0 END ) AS at_budbee,
-        SUM(CASE WHEN slog.id IS NULL THEN 1 ELSE 0 END) AS not_at_budbee,
-        sum(CASE WHEN p.recall_reason IS NOT NULL THEN 1 ELSE 0 END) as recalled,
+        date(o.created_at) as created_at,
+        pba.picked_up,
+        p.recall_reason,
+        o.id as order_id,
+        CASE WHEN pba.picked_up IS NULL AND pba.id IS NOT NULL THEN 1 ELSE 0 END AS in_locker,
+        CASE WHEN pba.id IS NULL AND slog.id IS NOT NULL AND p.recall_reason IS NULL THEN 1 ELSE 0 END AS at_budbee,
+        CASE WHEN slog.id IS NULL THEN 1 ELSE 0 END AS not_at_budbee,
         pcz.country_code,
         now() as time_stamp
-FROM orders AS o
+FROM (select * from orders
+    WHERE created_at > DATE_SUB(NOW(), INTERVAL 30 DAY)
+    and locker_id IS NOT NULL
+    AND cancellation_id IS NULL
+    and binary substr(cart_id,7,5) <> 'Route') AS o
         JOIN parcels p on o.id = p.order_id
         LEFT JOIN parcel_box_assignments pba on p.id = pba.parcel_id
         LEFT JOIN scanning_log slog on slog.id = (SELECT id FROM scanning_log WHERE parcel_id =  p.id ORDER BY DATE DESC LIMIT 1)
         JOIN postal_code_zones pcz on o.delivery_postal_code_zone_id = pcz.id
 
-WHERE o.created_at > DATE_SUB(NOW(), INTERVAL 30 DAY)
-AND o.locker_id IS NOT NULL
-AND o.cancellation_id IS NULL
-AND o.cart_id NOT LIKE "%route%"
-GROUP BY date(o.created_at), pcz.country_code
+#GROUP BY date(o.created_at), pcz.country_code
 """
 
-box_order_progress_over_time_df = readJDBC(query18, 'budbee')
+
+query_sub = """
+select 
+    min(id) as min_id,
+    max(id) as max_id
+    from orders
+    where created_at > DATE_SUB(NOW(), INTERVAL 30 DAY)
+"""
+
+order_id_df = readJDBC(query_sub, 'budbee')
+min_id = order_id_df.collect()[0][0]
+max_id = order_id_df.collect()[0][1]
+
+
+box_order_progress_over_time_df_temp = readJDBC_part(query18, 'budbee', "order_id", min_id, max_id)
+box_order_progress_over_time_df = box_order_progress_over_time_df_temp.groupby("created_at","country_code","time_stamp").agg(F.count("order_id").alias("orders"),
+                                                                                                                             F.count("picked_up").alias("picked_up"),
+                                                                                                                             F.sum("in_locker").alias("in_locker"),
+                                                                                                                             F.sum("at_budbee").alias("at_budbee"),
+                                                                                                                             F.sum("not_at_budbee").alias("not_at_budbee"),
+                                                                                                                             F.count("recall_reason").alias("recalled"))
+
 
 writeSnowflake(box_order_progress_over_time_df, 'box_order_progress_over_time')
 
@@ -1076,29 +1127,45 @@ writeSnowflake(boxes_per_locker_df, 'boxes_per_locker')
 # DAG: locker_orders_backlog_by_locker
 query24 = """
 SELECT  l.identifier,
-       count(DISTINCT o.id) AS orders,
-       SUM(CASE WHEN slog.id IS NOT NULL AND us.warehouse_id = pcz.terminal_id THEN 1 ELSE 0 END) AS scanned_in_distribution_terminal,
-       SUM(CASE WHEN slog.id IS NOT NULL THEN 1 ELSE 0 END) AS scanned_by_budbee,
+       o.id as order_id,
+       slog.id as scanning_log_id,
+       CASE WHEN slog.id IS NOT NULL AND us.warehouse_id = pcz.terminal_id THEN 1 ELSE 0 END AS scanned_in_distribution_terminal,
        now() as time_stamp
-FROM orders AS o
+FROM (select * from orders
+    where created_at >= DATE_ADD(current_date(), INTERVAL -30 DAY)
+		AND cancellation_id is null) AS o
         JOIN lockers l on o.locker_id = l.id
 		JOIN parcels AS p ON o.id = p.order_id
-		JOIN postal_code_zones AS pcz ON o.delivery_postal_code_zone_id = pcz.id
+		JOIN postal_code_zones AS pcz ON o.delivery_postal_code_zone_id = pcz.id and pcz.type = "TO_LOCKER"
 		LEFT JOIN parcel_box_assignments AS pba ON p.id = pba.parcel_id
 		LEFT JOIN consignments AS c ON c.order_id = o.id
 		JOIN warehouses AS w ON w.id = pcz.terminal_id
 		LEFT JOIN scanning_log AS slog ON slog.id = (SELECT id FROM scanning_log WHERE parcel_id = p.id ORDER BY DATE DESC LIMIT 1)
 		LEFT JOIN users AS u ON u.id = slog.user_id
 		LEFT JOIN user_settings AS us ON us.id = u.user_settings_id
-WHERE pcz.type = "TO_LOCKER"
-		AND o.created_at >= DATE_ADD(current_date(), INTERVAL -30 DAY)
-		AND o.cancellation_id is null
-  		AND pba.id IS NULL
+WHERE  pba.id IS NULL
   		AND c.id IS NULL
-GROUP BY l.id
 """
 
-locker_orders_backlog_by_locker_df = readJDBC(query24, 'budbee')
+
+query_sub = """
+select 
+    min(id) as min_id,
+    max(id) as max_id
+    from orders
+    where created_at >= DATE_ADD(current_date(), INTERVAL -30 DAY)
+"""
+
+order_id_df = readJDBC(query_sub, 'budbee')
+min_id = order_id_df.collect()[0][0]
+max_id = order_id_df.collect()[0][1]
+
+
+locker_orders_backlog_by_locker_df_temp = readJDBC_part(query24, 'budbee', "order_id", min_id, max_id)
+
+locker_orders_backlog_by_locker_df = locker_orders_backlog_by_locker_df_temp.groupBy("identifier","time_stamp").agg(F.countDistinct("order_id").alias("orders"),
+                                                                                                                    F.sum("scanned_in_distribution_terminal").alias("scanned_in_distribution_terminal"),
+                                                                                                                   F.count("scanning_log_id").alias("scanned_by_budbee"))
 
 writeSnowflake(locker_orders_backlog_by_locker_df, 'locker_orders_backlog_by_locker')
 
@@ -1119,3 +1186,107 @@ SELECT c.id, r2.score, r2.rating_category, pcz.country_code, pcz.city from route
 ratings_per_country_in_routes_today_df = readJDBC(query25, 'budbee')
 
 writeSnowflake(ratings_per_country_in_routes_today_df, 'ratings_per_country_in_routes_today')
+
+# COMMAND ----------
+
+# DAG: parcel_due_today_vs_scanned
+query26 = """
+SELECT COUNT(c.id)         AS consignments,
+       COUNT(DISTINCT p.id)         AS parcels_due,
+       COUNT(DISTINCT sl.parcel_id) AS scanned_parcels,
+       w.code,
+       utc_timestamp() as time_stamp
+FROM  consignments c USE INDEX(IDX_date) -- add index but still run a bit slow
+          JOIN orders AS o ON o.id = c.order_id
+          JOIN postal_code_zones AS pcz ON pcz.id = o.delivery_postal_code_zone_id and pcz.type = 'TO_DOOR'
+          JOIN warehouses as w on pcz.terminal_id = w.id
+          LEFT JOIN parcel_consignments AS pc ON pc.consignment_id = c.id
+          LEFT JOIN parcels AS p ON (p.id = pc.parcel_id AND p.visible IS TRUE)
+          LEFT JOIN scanning_log AS sl ON (sl.parcel_id = p.id AND sl.date > c.deadline)
+WHERE c.date = utc_date()
+  and c.type in ('DELIVERY', 'RETURN')
+  AND c.cancellation_id IS NULL
+group by w.code
+"""
+
+parcel_due_today_vs_scanned_df = readJDBC(query26, 'budbee')
+
+writeSnowflake(parcel_due_today_vs_scanned_df, 'parcel_due_today_vs_scanned')
+
+# COMMAND ----------
+
+# DAG: box_parcel_due_today_added_to_pallet
+# Currently takes 3-4 mins to run
+query27 = """
+SELECT lc.id as consignment_id,
+       p.id as parcel_id,
+       lpp.id as locker_pallet_parcel_id,
+       w.code as terminal,
+       utc_timestamp as time_stamp
+FROM (select locker_consignments.id,
+            locker_consignments.order_id
+     from locker_consignments
+        JOIN intervals i on locker_consignments.estimated_interval_id = i.id
+        JOIN timestamps t on i.start_timestamp_id = t.id
+    WHERE DATE(t.date) = utc_date()
+        AND binary locker_consignments.consignment_type in ('DELIVERY', 'RETURN')
+        AND  locker_consignments.cancellation_id IS NULL) lc
+        
+        JOIN orders AS o ON o.id = lc.order_id
+        JOIN postal_code_zones AS pcz ON pcz.id = o.delivery_postal_code_zone_id
+        JOIN warehouses as w on pcz.terminal_id = w.id
+
+        LEFT JOIN parcels p on (p.order_id = o.id)
+        LEFT JOIN locker_pallet_parcels as lpp on p.id = lpp.parcel_id
+
+"""
+
+
+query_sub = """
+select 
+    min(lc.id) as min_id,
+    max(lc.id) as max_id
+    from locker_consignments lc
+        JOIN intervals i on lc.estimated_interval_id = i.id
+        JOIN timestamps t on i.start_timestamp_id = t.id
+    where DATE(t.date) = utc_date()
+"""
+
+lc_id_df = readJDBC(query_sub, 'budbee')
+min_id = lc_id_df.collect()[0][0]
+max_id = lc_id_df.collect()[0][1]
+
+
+box_parcel_due_today_added_to_pallet_df_temp = readJDBC_part(query27, 'budbee', "consignment_id", min_id, max_id)
+box_parcel_due_today_added_to_pallet_df = box_parcel_due_today_added_to_pallet_df_temp.groupby("terminal","time_stamp").agg(F.countDistinct("consignment_id").alias("consignments"),
+                                                                                                                             F.countDistinct("parcel_id").alias("parcels_due"),
+                                                                                                                             F.countDistinct("locker_pallet_parcel_id").alias("parcel_added_to_pallet"))
+
+writeSnowflake(box_parcel_due_today_added_to_pallet_df, 'box_parcel_due_today_added_to_pallet')
+
+# COMMAND ----------
+
+# DAG: scanning_progress_status_by_city_with_country_code
+query28 = """
+SELECT
+    w.code,
+    pcz.country_code,
+    COUNT(DISTINCT c.id) AS consignments,
+    COUNT(DISTINCT p.id) AS parcels_due,
+    COUNT(DISTINCT sl.parcel_id) AS scanned_parcels,
+    now() as time_stamp
+FROM consignments AS c USE INDEX(IDX_date)
+    JOIN orders AS o ON o.id = c.order_id
+    JOIN postal_code_zones AS pcz ON pcz.id = o.delivery_postal_code_zone_id
+    JOIN warehouses w ON pcz.terminal_id = w.id
+    LEFT JOIN parcel_consignments AS pc ON pc.consignment_id = c.id
+    LEFT JOIN parcels AS p ON (p.id = pc.parcel_id AND p.visible IS TRUE)
+    LEFT JOIN scanning_log AS sl ON (sl.parcel_id = p.id AND sl.date > c.deadline)
+WHERE c.date = CURDATE()
+AND c.cancellation_id IS NULL
+GROUP BY w.code
+"""
+
+scanning_progress_status_by_city_with_country_code_df = readJDBC(query28, 'budbee')
+
+writeSnowflake(scanning_progress_status_by_city_with_country_code_df, 'scanning_progress_status_by_city_with_country_code')

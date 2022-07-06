@@ -1,6 +1,6 @@
 # Databricks notebook source
 import pyspark.sql.functions as F
-from pyspark.sql.functions import col, lit
+from pyspark.sql.functions import col, lit, when
 
 # COMMAND ----------
 

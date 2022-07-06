@@ -1,6 +1,6 @@
 # Databricks notebook source
 # Set refresh rate at 1 hour
-# This covers the DAGs/queries that are refreshed between more than 30 mins to less than 4 hours in Klipfolio
+# This covers the DAGs/queries that are refreshed more than 30 mins to less than 4 hours in Klipfolio
 
 # COMMAND ----------
 
@@ -25,21 +25,10 @@ writeSnowflake(counting_number_of_budbee_plus_membership_df, 'counting_number_of
 
 # COMMAND ----------
 
-# DAG: app_consumer_orders_stats_by_country (need to query from more than 1 db in Budbee DB)
-# 6-8 mins
-query2 = """
-SELECT app_consumer_stats.country_code                                    AS country_code,
-       count(consumer_id)                                                 AS total_app_consumers,
-       count(one_order_consumer)                                          AS one_order_consumers,
-       count(two_orders_consumer)                                         AS two_orders_consumers,
-       count(three_and_more_orders_consumer)                              AS three_and_more_orders_consumers,
-       count(one_order_consumer) * 100.0 / count(consumer_id)             AS "one_order_consumers %",
-       count(two_orders_consumer) * 100.0 / count(consumer_id)            AS "two_orders_consumers %",
-       count(three_and_more_orders_consumer) * 100.0 / count(consumer_id) AS "three_and_more_orders_consumers %",
-       now() as time_stamp
-
-FROM (
-         SELECT
+# DAG: app_consumer_orders_stats_by_country
+# 6-7 mins
+query_sub1 = """
+SELECT
              pcz.country_code AS country_code,
              c.consumer_id    AS consumer_id,
              count(o.id)      AS consumer_orders,
@@ -60,24 +49,10 @@ FROM (
                   JOIN budbee.postal_code_zones pcz ON o.delivery_postal_code_zone_id = pcz.id
          WHERE o.created_at >= ADDDATE(current_date,INTERVAL -12 MONTH)
          GROUP BY c.consumer_id,pcz.country_code
-         ORDER BY consumer_orders DESC
-     ) app_consumer_stats
-GROUP BY app_consumer_stats.country_code
+"""
 
-UNION ALL
-
-SELECT app_consumer_stats.country_code                                    AS country_code,
-       count(consumer_id)                                                 AS total_app_consumers,
-       count(one_order_consumer)                                          AS one_order_consumers,
-       count(two_orders_consumer)                                         AS two_orders_consumers,
-       count(three_and_more_orders_consumer)                              AS three_and_more_orders_consumers,
-       count(one_order_consumer) * 100.0 / count(consumer_id)             AS "one_order_consumers %",
-       count(two_orders_consumer) * 100.0 / count(consumer_id)            AS "two_orders_consumers %",
-       count(three_and_more_orders_consumer) * 100.0 / count(consumer_id) AS "three_and_more_orders_consumers %",
-       now() as time_stamp
-
-FROM (
-         SELECT
+query_sub2 = """
+SELECT
              'All' AS country_code,
              c.consumer_id    AS consumer_id,
              count(o.id)      AS consumer_orders,
@@ -97,12 +72,23 @@ FROM (
                   JOIN budbee.orders o ON co.order_id = o.id
          WHERE o.created_at >= ADDDATE(current_date,INTERVAL -12 MONTH)
          GROUP BY c.consumer_id
-         ORDER BY consumer_orders DESC
-     ) app_consumer_stats
-GROUP BY app_consumer_stats.country_code
 """
 
-app_consumer_orders_stats_by_country_df = readJDBC(query2, 'budbee')
+
+groupbyconsumer_country_df = readJDBC(query_sub1, 'budbee')
+
+groupbyconsumer_df = readJDBC(query_sub2, 'budbee')
+
+union_df = groupbyconsumer_df.union(groupbyconsumer_country_df)
+
+app_consumer_orders_stats_by_country_df = union_df.groupBy("country_code").agg(F.count("consumer_id").alias("total_app_consumers"),
+                                                                              F.count("one_order_consumer").alias("one_order_consumers"),
+                                                                              F.count("two_orders_consumer").alias("two_orders_consumers"),
+                                                                              F.count("three_and_more_orders_consumer").alias("three_and_more_orders_consumers"),
+                                                                              (F.count("one_order_consumer")/F.count("consumer_id")*100).alias("one_order_consumers %"),
+                                                                              (F.count("two_orders_consumer")/F.count("consumer_id")*100).alias("one_order_consumers %"),
+                                                                              (F.count("three_and_more_orders_consumer")/F.count("consumer_id")*100).alias("one_order_consumers %")).withColumn('timestamp', F.current_timestamp())
+
 writeSnowflake(app_consumer_orders_stats_by_country_df, 'app_consumer_orders_stats_by_country')
 
 # COMMAND ----------
@@ -111,8 +97,8 @@ writeSnowflake(app_consumer_orders_stats_by_country_df, 'app_consumer_orders_sta
 # 1.5 mins
 query3 = """
 select
-    count(o.id),
-    date(o.created_at),
+    o.id as order_id,
+    date(o.created_at) as created_at,
     now() as time_stamp
 from orders as o
     join buyers as b on o.buyer_id = b.id
@@ -121,11 +107,28 @@ where
     bt.tag_id = 2
     and o.cancellation_id is null
     and o.created_at > DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH) -- reduce amount of data fetch from 12 months to 3 monnths, since Klipfolio only show data last 3 months
-GROUP BY date(o.created_at)
-order by o.created_at desc
+#GROUP BY date(o.created_at)
+#order by o.created_at desc
 """
 
-orders_created_per_day_in_ecommerce_df = readJDBC(query3, 'budbee')
+
+query_sub = """
+select 
+    min(id) as min_id,
+    max(id) as max_id
+    from orders
+    where created_at > DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH)
+"""
+
+order_id_df = readJDBC(query_sub, 'budbee')
+min_id = order_id_df.collect()[0][0]
+max_id = order_id_df.collect()[0][1]
+
+
+orders_created_per_day_in_ecommerce_df_temp = readJDBC_part(query3, 'budbee', "order_id", min_id, max_id)
+
+orders_created_per_day_in_ecommerce_df = orders_created_per_day_in_ecommerce_df_temp.groupBy("created_at","time_stamp").agg(F.count("order_id").alias("orders"))
+
 writeSnowflake(orders_created_per_day_in_ecommerce_df, 'orders_created_per_day_in_ecommerce')
 
 # COMMAND ----------
@@ -212,8 +215,9 @@ writeSnowflake(schedule_of_return_merchant_routes_per_terminal_today_df, 'schedu
 # 1,6 mins
 query5 = """
 SELECT
-    count(o.id),
-    date(o.created_at),
+    #count(o.id),
+    o.id as order_id
+    date(o.created_at) as created_at,
     pcz.country_code,
     now() as time_stamp
     
@@ -223,11 +227,14 @@ FROM orders AS o
 WHERE o.locker_id IS NOT NULL and o.cancellation_id is null
   and o.created_at > DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH)
 
-GROUP BY date(o.created_at), pcz.country_code
-ORDER BY o.created_at desc
+#GROUP BY date(o.created_at), pcz.country_code
+#ORDER BY o.created_at desc
 """
 
-box_orders_created_per_day_df = readJDBC(query5, 'budbee')
+box_orders_created_per_day_df_temp = readJDBC(query5, 'budbee')
+
+box_orders_created_per_day_df = box_orders_created_per_day_df_temp.groupBy("created_at","country_code","time_stamp").agg(F.count("order_id").alias("orders"))
+
 writeSnowflake(box_orders_created_per_day_df, 'box_orders_created_per_day')
 
 # COMMAND ----------
@@ -342,9 +349,12 @@ writeSnowflake(counting_new_subscriptions_df, 'counting_new_subscriptions')
 
 # DAG: volume_statistics_today_per_country_and_city
 query10 = """
-SELECT count(p.id)                                    as parcels,
-       count(d.id)                                    as measured_parcels,
-       SUM(IF(d.sorting_deviation IS NOT NULL, 1, 0)) as heavy_parcels,
+SELECT #count(p.id)                                    as parcels,
+       #count(d.id)                                    as measured_parcels,
+       p.id as parcel_id,
+       d.id as dimension_id,
+       d.sorting_deviation,
+#      SUM(IF(d.sorting_deviation IS NOT NULL, 1, 0)) as heavy_parcels,
        b.external_name,
        pcz.city,
        pcz.country_code,
@@ -363,13 +373,16 @@ WHERE con.date = utc_date()
   AND pcz.id > 111
   AND con.cancellation_id is null
   AND o.cancellation_id is null
-GROUP BY b.id, pcz.id
+#GROUP BY b.id, pcz.id
 
 UNION
 
-SELECT count(p.id)                                    as parcels,
-       count(d.id)                                    as measured_parcels,
-       SUM(IF(d.sorting_deviation IS NOT NULL, 1, 0)) as heavy_parcels,
+SELECT #count(p.id)                                    as parcels,
+       #count(d.id)                                    as measured_parcels,
+       p.id as parcel_id,
+       d.id as dimension_id,
+       d.sorting_deviation,
+#      SUM(IF(d.sorting_deviation IS NOT NULL, 1, 0)) as heavy_parcels,
        b.external_name,
        pcz.city,
        pcz.country_code,
@@ -388,18 +401,22 @@ WHERE
     con.cancellation_id is null
   AND pcz.id > 111
 
-GROUP BY b.id, pcz.id
+#GROUP BY b.id, pcz.id
 
 """
 
-volume_statistics_today_per_country_and_city_df = readJDBC(query10, 'budbee')
+volume_temp_df = readJDBC(query10, 'budbee')
 
+
+volume_statistics_today_per_country_and_city_df = volume_temp_df.groupBy("external_name","city","country_code","delivery_type","timestamp").agg(F.count("parcel_id").alias("parcels"),
+                                                                                                                                               F.count("dimension_id").alias("measured_parcels"),
+                                                                                                                                               F.count("sorting_deviation").alias("heavy_parcels"))
 writeSnowflake(volume_statistics_today_per_country_and_city_df, 'volume_statistics_today_per_country_and_city')
 
 # COMMAND ----------
 
 # DAG: consumers_with_app_over_time
-query = """
+query11 = """
 SELECT l.identifier,
        l.name,
        l.country,
@@ -435,5 +452,35 @@ GROUP BY l.id
 ORDER BY count(id) DESC
 """
 
-consumers_with_app_over_time_df = readJDBC(query, 'budbee')
+consumers_with_app_over_time_df = readJDBC(query11, 'budbee')
 writeSnowflake(consumers_with_app_over_time_df, 'consumers_with_app_over_time')
+
+# COMMAND ----------
+
+# DAG: lockers_current_degree_of_filling
+query12 = """
+SELECT l.id,
+       l.name,
+       count(lb.id) AS number_of_boxes,
+       sum(CASE WHEN pba.state = "PRESENT" THEN 1 ELSE 0 END) AS used_boxes,
+       (sum(CASE WHEN pba.state = "PRESENT" THEN 1 ELSE 0 END) / count(lb.id)) * 100  AS ratio,
+       pcz.country_code,
+       now() as time_stamp
+
+FROM  locker_boxes AS lb
+
+
+		LEFT JOIN parcel_box_assignments AS pba
+		  ON lb.id = pba.box_id AND (pba.state = "PRESENT")
+
+		JOIN lockers AS l
+		  ON lb.locker_id = l.id
+
+        JOIN postal_code_zones pcz on l.postal_code_zone_id = pcz.id
+
+GROUP BY l.id
+ORDER BY count(pba.id) DESC
+"""
+
+lockers_current_degree_of_filling_df = readJDBC(query12, 'budbee')
+writeSnowflake(lockers_current_degree_of_filling_df, 'lockers_current_degree_of_filling')
