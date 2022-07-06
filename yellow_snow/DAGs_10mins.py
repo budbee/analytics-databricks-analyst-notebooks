@@ -1262,8 +1262,7 @@ box_parcel_due_today_added_to_pallet_df = box_parcel_due_today_added_to_pallet_d
                                                                                                                              F.countDistinct("parcel_id").alias("parcels_due"),
                                                                                                                              F.countDistinct("locker_pallet_parcel_id").alias("parcel_added_to_pallet"))
 
-box_parcel_due_today_added_to_pallet_df.display()
-# writeSnowflake(box_parcel_due_today_added_to_pallet_df, 'box_parcel_due_today_added_to_pallet')
+writeSnowflake(box_parcel_due_today_added_to_pallet_df, 'box_parcel_due_today_added_to_pallet')
 
 # COMMAND ----------
 

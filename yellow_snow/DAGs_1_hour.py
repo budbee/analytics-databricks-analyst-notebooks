@@ -88,7 +88,8 @@ app_consumer_orders_stats_by_country_df = union_df.groupBy("country_code").agg(F
                                                                               (F.count("one_order_consumer")/F.count("consumer_id")*100).alias("one_order_consumers %"),
                                                                               (F.count("two_orders_consumer")/F.count("consumer_id")*100).alias("one_order_consumers %"),
                                                                               (F.count("three_and_more_orders_consumer")/F.count("consumer_id")*100).alias("one_order_consumers %")).withColumn('timestamp', F.current_timestamp())
-app_consumer_orders_stats_by_country_df.display()
+
+writeSnowflake(app_consumer_orders_stats_by_country_df, 'app_consumer_orders_stats_by_country')
 
 # COMMAND ----------
 
@@ -410,8 +411,7 @@ volume_temp_df = readJDBC(query10, 'budbee')
 volume_statistics_today_per_country_and_city_df = volume_temp_df.groupBy("external_name","city","country_code","delivery_type","timestamp").agg(F.count("parcel_id").alias("parcels"),
                                                                                                                                                F.count("dimension_id").alias("measured_parcels"),
                                                                                                                                                F.count("sorting_deviation").alias("heavy_parcels"))
-volume_statistics_today_per_country_and_city_df.display()
-# writeSnowflake(volume_statistics_today_per_country_and_city_df, 'volume_statistics_today_per_country_and_city')
+writeSnowflake(volume_statistics_today_per_country_and_city_df, 'volume_statistics_today_per_country_and_city')
 
 # COMMAND ----------
 
