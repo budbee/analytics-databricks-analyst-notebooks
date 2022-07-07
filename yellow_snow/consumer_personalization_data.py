@@ -25,6 +25,7 @@ FROM consumers.consumer c
     JOIN budbee.postal_code_zones pcz ON o.delivery_postal_code_zone_id = pcz.id
     JOIN parcels p on o.id = p.order_id
 WHERE o.created_at >= ADDDATE(current_date,INTERVAL -6 MONTH)
+    AND b.deleted_at IS NULL
 """
 
 
