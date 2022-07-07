@@ -1,6 +1,45 @@
 # Databricks notebook source
-# Set refresh rate at 10 mins
-# This covers the DAGs/queries that are refreshed equal/less than 30 mins in Klipfolio
+# MAGIC %md
+# MAGIC # 10 Minutes
+# MAGIC This notebook covers the DAGs/queries that have a 10 minute update frequency
+# MAGIC ## DAGs
+# MAGIC * e_commerce_todos
+# MAGIC * total_count_of_parcels_in_locker_routes_by_status_route_locker_merchant
+# MAGIC * orders_created_last_48_hours_per_day_in_ecommerce
+# MAGIC * orders_created_per_day_per_city
+# MAGIC * cancellation_per_day
+# MAGIC * miss_category_per_city
+# MAGIC * cancellation_category_per_date_and_city
+# MAGIC * billable_DORAPPs_cross_country_per_country
+# MAGIC * scheduled_orders_by_group_and_buyer
+# MAGIC * Vehicle ALPR (direct query Klipfolio)
+# MAGIC * nl_be_terminals_by_country_dorapps_today
+# MAGIC * 3 refactored dags;
+# MAGIC   * billable_DORAPPs_today_per_country
+# MAGIC   * billable_DORAPPs_today 
+# MAGIC   * booked_DORAPPS_per_merchant_today
+# MAGIC * billable_returns_attempts_today_per_country
+# MAGIC * consumer_returns_today
+# MAGIC * timeslots_due_today
+# MAGIC * 3 refactored dags;
+# MAGIC   * ew_locker_orders_last_24_hours_grouped_by_merchant 
+# MAGIC   * new_locker_orders_last_24_hours_grouped_by_locker 
+# MAGIC   * new_locker_orders_last_24_hours_grouped_by_terminal
+# MAGIC * 2 refactored dags;
+# MAGIC   * Combine box_returns_picked_up_today
+# MAGIC   * box_returns_present_today
+# MAGIC * box_returns_present_all_time
+# MAGIC * box_order_progress_over_time
+# MAGIC * 2 refactored dags;
+# MAGIC   * lockers_with_info 
+# MAGIC   * enabled_and_disabled_lockers
+# MAGIC * lockers_with_errors
+# MAGIC * lastningsinspektion_stockholm_sondag
+# MAGIC * current_locker_status
+# MAGIC * boxes_per_locker
+# MAGIC * Ratings_per_country_in_routes_today (direct query Klipfolio)
+# MAGIC * parcel_due_today_vs_scanned
+# MAGIC * scanning_progress_status_by_city_with_country_code
 
 # COMMAND ----------
 
@@ -156,7 +195,7 @@ WHERE
   AND r.type="DISTRIBUTION"
 """
 
-Home_cancellation_df = readJDBC_part(query_home, 'budbee', "route_id", min_id, max_id)
+Home_cancellation_df = readJDBC_part(query_home, 'budbee', "route_id", min_id, max_id, numPartitions=16)
 
 query_box = """
 SELECT
@@ -186,7 +225,7 @@ WHERE
 """
 
 
-Box_cancellation_df = readJDBC_part(query_box, 'budbee', "route_id", min_id, max_id)
+Box_cancellation_df = readJDBC_part(query_box, 'budbee', "route_id", min_id, max_id, numPartitions=16)
 
 union_df = Home_cancellation_df.union(Box_cancellation_df)
 
@@ -793,8 +832,10 @@ consignment_id_today_df = readJDBC(query_sub, 'budbee')
 min_id = consignment_id_today_df.collect()[0][0]
 max_id = consignment_id_today_df.collect()[0][1]
 
-consumer_returns_today_df_temp = readJDBC_part(query13, 'budbee', "consignment_id", min_id, max_id)
-consumer_returns_today_df = consumer_returns_today_df_temp.groupby("buyer_id","external_name","postal_code_zone_id","title","country_code","city","terminal_id","time_stamp").agg(F.count("parcel_id").alias("parcels"),F.countDistinct("consignment_id").alias("consignments"))
+consumer_returns_today_df_temp = readJDBC_part(query13, 'budbee', "consignment_id", min_id, max_id, numPartitions=16)
+consumer_returns_today_df = consumer_returns_today_df_temp.groupby("buyer_id","external_name","postal_code_zone_id","title","country_code","city","terminal_id","time_stamp").agg(
+  F.count("parcel_id").alias("parcels"),
+  F.countDistinct("consignment_id").alias("consignments"))
 writeSnowflake(consumer_returns_today_df, 'consumer_returns_today')
 
 # COMMAND ----------
@@ -867,7 +908,7 @@ min_id = order_id_df.collect()[0][0]
 max_id = order_id_df.collect()[0][1]
 
 
-new_locker_orders_last_24_hours_df_temp = readJDBC_part(query15, 'budbee', "order_id", min_id, max_id)
+new_locker_orders_last_24_hours_df_temp = readJDBC_part(query15, 'budbee', "order_id", min_id, max_id, numPartitions=16)
 new_locker_orders_last_24_hours_df = new_locker_orders_last_24_hours_df_temp.groupby("external_name","locker_id","terminal","country_code","time_stamp").agg(F.count("order_id").alias("orders"))
 writeSnowflake(new_locker_orders_last_24_hours_df, 'new_locker_orders_last_24_hours')
 
@@ -931,11 +972,12 @@ SELECT
         CASE WHEN slog.id IS NULL THEN 1 ELSE 0 END AS not_at_budbee,
         pcz.country_code,
         now() as time_stamp
-FROM (select * from orders
+FROM (select * from orders use index(IDX_order_created_at)
     WHERE created_at > DATE_SUB(NOW(), INTERVAL 30 DAY)
     and locker_id IS NOT NULL
     AND cancellation_id IS NULL
-    and binary substr(cart_id,7,5) <> 'Route') AS o
+    and binary substr(cart_id,7,5) <> 'Route'
+    ) AS o
         JOIN parcels p on o.id = p.order_id
         LEFT JOIN parcel_box_assignments pba on p.id = pba.parcel_id
         LEFT JOIN scanning_log slog on slog.id = (SELECT id FROM scanning_log WHERE parcel_id =  p.id ORDER BY DATE DESC LIMIT 1)
@@ -943,13 +985,13 @@ FROM (select * from orders
 
 #GROUP BY date(o.created_at), pcz.country_code
 """
-
+# and binary substr(cart_id,7,5) <> 'Route'
 
 query_sub = """
 select 
     min(id) as min_id,
     max(id) as max_id
-    from orders
+    from orders use index(IDX_order_created_at)
     where created_at > DATE_SUB(NOW(), INTERVAL 30 DAY)
 """
 
@@ -958,7 +1000,7 @@ min_id = order_id_df.collect()[0][0]
 max_id = order_id_df.collect()[0][1]
 
 
-box_order_progress_over_time_df_temp = readJDBC_part(query18, 'budbee', "order_id", min_id, max_id)
+box_order_progress_over_time_df_temp = readJDBC_part(query18, 'budbee', "order_id", min_id, max_id, numPartitions=4)
 box_order_progress_over_time_df = box_order_progress_over_time_df_temp.groupby("created_at","country_code","time_stamp").agg(F.count("order_id").alias("orders"),
                                                                                                                              F.count("picked_up").alias("picked_up"),
                                                                                                                              F.sum("in_locker").alias("in_locker"),
@@ -1124,53 +1166,6 @@ writeSnowflake(boxes_per_locker_df, 'boxes_per_locker')
 
 # COMMAND ----------
 
-# DAG: locker_orders_backlog_by_locker
-query24 = """
-SELECT  l.identifier,
-       o.id as order_id,
-       slog.id as scanning_log_id,
-       CASE WHEN slog.id IS NOT NULL AND us.warehouse_id = pcz.terminal_id THEN 1 ELSE 0 END AS scanned_in_distribution_terminal,
-       now() as time_stamp
-FROM (select * from orders
-    where created_at >= DATE_ADD(current_date(), INTERVAL -30 DAY)
-		AND cancellation_id is null) AS o
-        JOIN lockers l on o.locker_id = l.id
-		JOIN parcels AS p ON o.id = p.order_id
-		JOIN postal_code_zones AS pcz ON o.delivery_postal_code_zone_id = pcz.id and pcz.type = "TO_LOCKER"
-		LEFT JOIN parcel_box_assignments AS pba ON p.id = pba.parcel_id
-		LEFT JOIN consignments AS c ON c.order_id = o.id
-		JOIN warehouses AS w ON w.id = pcz.terminal_id
-		LEFT JOIN scanning_log AS slog ON slog.id = (SELECT id FROM scanning_log WHERE parcel_id = p.id ORDER BY DATE DESC LIMIT 1)
-		LEFT JOIN users AS u ON u.id = slog.user_id
-		LEFT JOIN user_settings AS us ON us.id = u.user_settings_id
-WHERE  pba.id IS NULL
-  		AND c.id IS NULL
-"""
-
-
-query_sub = """
-select 
-    min(id) as min_id,
-    max(id) as max_id
-    from orders
-    where created_at >= DATE_ADD(current_date(), INTERVAL -30 DAY)
-"""
-
-order_id_df = readJDBC(query_sub, 'budbee')
-min_id = order_id_df.collect()[0][0]
-max_id = order_id_df.collect()[0][1]
-
-
-locker_orders_backlog_by_locker_df_temp = readJDBC_part(query24, 'budbee', "order_id", min_id, max_id)
-
-locker_orders_backlog_by_locker_df = locker_orders_backlog_by_locker_df_temp.groupBy("identifier","time_stamp").agg(F.countDistinct("order_id").alias("orders"),
-                                                                                                                    F.sum("scanned_in_distribution_terminal").alias("scanned_in_distribution_terminal"),
-                                                                                                                   F.count("scanning_log_id").alias("scanned_by_budbee"))
-
-writeSnowflake(locker_orders_backlog_by_locker_df, 'locker_orders_backlog_by_locker')
-
-# COMMAND ----------
-
 # DAG: Ratings_per_country_in_routes_today (direct query Klipfolio)
 query25 = """
 SELECT c.id, r2.score, r2.rating_category, pcz.country_code, pcz.city from routes as r
@@ -1212,57 +1207,6 @@ group by w.code
 parcel_due_today_vs_scanned_df = readJDBC(query26, 'budbee')
 
 writeSnowflake(parcel_due_today_vs_scanned_df, 'parcel_due_today_vs_scanned')
-
-# COMMAND ----------
-
-# DAG: box_parcel_due_today_added_to_pallet
-# Currently takes 3-4 mins to run
-query27 = """
-SELECT lc.id as consignment_id,
-       p.id as parcel_id,
-       lpp.id as locker_pallet_parcel_id,
-       w.code as terminal,
-       utc_timestamp as time_stamp
-FROM (select locker_consignments.id,
-            locker_consignments.order_id
-     from locker_consignments
-        JOIN intervals i on locker_consignments.estimated_interval_id = i.id
-        JOIN timestamps t on i.start_timestamp_id = t.id
-    WHERE DATE(t.date) = utc_date()
-        AND binary locker_consignments.consignment_type in ('DELIVERY', 'RETURN')
-        AND  locker_consignments.cancellation_id IS NULL) lc
-        
-        JOIN orders AS o ON o.id = lc.order_id
-        JOIN postal_code_zones AS pcz ON pcz.id = o.delivery_postal_code_zone_id
-        JOIN warehouses as w on pcz.terminal_id = w.id
-
-        LEFT JOIN parcels p on (p.order_id = o.id)
-        LEFT JOIN locker_pallet_parcels as lpp on p.id = lpp.parcel_id
-
-"""
-
-
-query_sub = """
-select 
-    min(lc.id) as min_id,
-    max(lc.id) as max_id
-    from locker_consignments lc
-        JOIN intervals i on lc.estimated_interval_id = i.id
-        JOIN timestamps t on i.start_timestamp_id = t.id
-    where DATE(t.date) = utc_date()
-"""
-
-lc_id_df = readJDBC(query_sub, 'budbee')
-min_id = lc_id_df.collect()[0][0]
-max_id = lc_id_df.collect()[0][1]
-
-
-box_parcel_due_today_added_to_pallet_df_temp = readJDBC_part(query27, 'budbee', "consignment_id", min_id, max_id)
-box_parcel_due_today_added_to_pallet_df = box_parcel_due_today_added_to_pallet_df_temp.groupby("terminal","time_stamp").agg(F.countDistinct("consignment_id").alias("consignments"),
-                                                                                                                             F.countDistinct("parcel_id").alias("parcels_due"),
-                                                                                                                             F.countDistinct("locker_pallet_parcel_id").alias("parcel_added_to_pallet"))
-
-writeSnowflake(box_parcel_due_today_added_to_pallet_df, 'box_parcel_due_today_added_to_pallet')
 
 # COMMAND ----------
 

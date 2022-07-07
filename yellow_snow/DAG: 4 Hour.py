@@ -1,6 +1,10 @@
 # Databricks notebook source
-# Set refresh rate at 4 hours
-# This covers the DAGs/queries that are refreshed around 4-6 hours in Klipfolio
+# MAGIC %md
+# MAGIC # 4 Hours
+# MAGIC This notebook covers the DAGs/queries that have a 4 hour update frequency
+# MAGIC ## DAGs
+# MAGIC * on_demand_pickups
+# MAGIC * on_demand_returns
 
 # COMMAND ----------
 
@@ -29,8 +33,7 @@ group by c.date, pc.city, b.id
 """
 
 on_demand_pickups_df = readJDBC(query, 'budbee')
-#writeSnowflake(on_demand_pickups_df, 'on_demand_pickups')
-
+writeSnowflake(on_demand_pickups_df, 'on_demand_pickups')
 
 # COMMAND ----------
 
