@@ -16,8 +16,9 @@ SELECT  l.identifier,
        slog.id as scanning_log_id,
        CASE WHEN slog.id IS NOT NULL AND us.warehouse_id = pcz.terminal_id THEN 1 ELSE 0 END AS scanned_in_distribution_terminal,
        now() as time_stamp
-FROM (select * from orders
-    where cancellation_id is null) AS o
+FROM (select * from orders use index(IDX_order_created_at)
+        where cancellation_id is null
+            and created_at >= DATE_ADD(current_date(), INTERVAL -30 DAY) AS o
         JOIN lockers l on o.locker_id = l.id
 		JOIN parcels AS p ON o.id = p.order_id
 		JOIN postal_code_zones AS pcz ON o.delivery_postal_code_zone_id = pcz.id and pcz.type = "TO_LOCKER"
@@ -36,7 +37,7 @@ query_sub = """
 select 
     min(id) as min_id,
     max(id) as max_id
-    from orders
+    from orders use index(IDX_order_created_at) 
     where created_at >= DATE_ADD(current_date(), INTERVAL -30 DAY)
 """
 
