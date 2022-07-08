@@ -101,7 +101,7 @@ query2 = """SELECT
     IF(from_cs.id IS NULL,
        rdtd.estimated_drive_time / (uos.drive_time_factor * rgs.drive_time_factor * rgs.initial_drive_time_factor),
        rdtd.estimated_drive_time / (uos.drive_time_factor * rgs.drive_time_factor))
-       AS here_drive_time_estimate,
+        AS here_drive_time_estimate,
     rdtd.estimated_drive_time as router_drive_time_estimate,
     rdtd.distance,
 
@@ -127,128 +127,127 @@ query2 = """SELECT
 
 FROM
     routes AS r
-    JOIN user_routes as ur on r.id = ur.route_id
-    JOIN warehouses AS w ON w.code = r.terminal
-    AND w.deleted_at IS NULL
-    JOIN addresses a
-        ON w.address_id = a.id
+        JOIN user_routes as ur on r.id = ur.route_id
+        JOIN warehouses AS w ON w.code = r.terminal
+        AND w.deleted_at IS NULL
+        JOIN addresses a
+             ON w.address_id = a.id
 
-    JOIN routeopt_drive_time_data rdtd
-        ON rdtd.route_id = r.id
-    LEFT JOIN routeopt_routes AS rr
-        ON r.routeopt_route_id = rr.id
-    LEFT JOIN routeopt_optimizations AS opt
-        ON rr.optimization_id = opt.id
-    LEFT JOIN routeopt_settings AS rs
-        ON opt.optimization_settings_id = rs.id
-    LEFT JOIN routeopt_graph_settings AS rgs
-        ON rs.routeopt_graph_settings_id = rgs.id
-    LEFT JOIN routeopt_vehicles_and_users AS rvau
-        ON rr.routeopt_vehicle_and_user_id = rvau.id
-    LEFT JOIN routeopt_vehicles_and_users_settings AS rvaus
-        ON rvau.routeopt_vehicle_and_user_settings_id = rvaus.id
-    LEFT JOIN user_optimization_settings AS uos
-        ON rvaus.user_optimization_settings_id = uos.id
+        JOIN routeopt_drive_time_data rdtd
+             ON rdtd.route_id = r.id
+        LEFT JOIN routeopt_routes AS rr
+                  ON r.routeopt_route_id = rr.id
+        LEFT JOIN routeopt_optimizations AS opt
+                  ON rr.optimization_id = opt.id
+        LEFT JOIN routeopt_settings AS rs
+                  ON opt.optimization_settings_id = rs.id
+        LEFT JOIN routeopt_graph_settings AS rgs
+                  ON rs.routeopt_graph_settings_id = rgs.id
+        LEFT JOIN routeopt_vehicles_and_users AS rvau
+                  ON rr.routeopt_vehicle_and_user_id = rvau.id
+        LEFT JOIN routeopt_vehicles_and_users_settings AS rvaus
+                  ON rvau.routeopt_vehicle_and_user_settings_id = rvaus.id
+        LEFT JOIN user_optimization_settings AS uos
+                  ON rvaus.user_optimization_settings_id = uos.id
 
-    -- Consumer and terminal stops
-    LEFT JOIN consumer_stops AS from_cs
-        ON rdtd.from_consumer_stop_id = from_cs.id
-    LEFT JOIN consumer_stops AS to_cs
-        ON rdtd.to_consumer_stop_id = to_cs.id
-    LEFT JOIN terminal_stops AS ts
-        ON ts.id = rdtd.terminal_stop_id
+        -- Consumer and terminal stops
+        LEFT JOIN consumer_stops AS from_cs
+                  ON rdtd.from_consumer_stop_id = from_cs.id
+        LEFT JOIN consumer_stops AS to_cs
+                  ON rdtd.to_consumer_stop_id = to_cs.id
+        LEFT JOIN terminal_stops AS ts
+                  ON ts.id = rdtd.terminal_stop_id
 
-   -- Used to get address of terminals using consumer_stop ids
-    LEFT JOIN intervals AS from_cs_i
-        ON from_cs.estimated_interval_id = from_cs_i.id
-    LEFT JOIN timestamps AS from_cs_ts
-        ON from_cs_i.stop_timestamp_id = from_cs_ts.id
-    LEFT JOIN addresses AS from_cs_ad
-        ON from_cs.address_id = from_cs_ad.id
-    LEFT JOIN addresses AS to_cs_ad
-        ON to_cs_ad.id = to_cs.address_id
-    LEFT JOIN addresses ts_ad
-        ON ts_ad.id = ts.address_id
+        -- Used to get address of terminals using consumer_stop ids
+        LEFT JOIN intervals AS from_cs_i
+                  ON from_cs.estimated_interval_id = from_cs_i.id
+        LEFT JOIN timestamps AS from_cs_ts
+                  ON from_cs_i.stop_timestamp_id = from_cs_ts.id
+        LEFT JOIN addresses AS from_cs_ad
+                  ON from_cs.address_id = from_cs_ad.id
+        LEFT JOIN addresses AS to_cs_ad
+                  ON to_cs_ad.id = to_cs.address_id
+        LEFT JOIN addresses ts_ad
+                  ON ts_ad.id = ts.address_id
 
-    -- Consumer and terminal consignments
-    LEFT JOIN consumer_stop_consignments AS from_cs_cons
-       ON from_cs.id = from_cs_cons.consumer_stop_id
-    LEFT JOIN consumer_stop_consignments AS to_cs_cons
-       ON to_cs.id = to_cs_cons.consumer_stop_id
-    LEFT JOIN consignments AS from_cons
-       ON from_cs_cons.consignment_id = from_cons.id
-    LEFT JOIN consignments AS to_cons
-       ON to_cs_cons.consignment_id = to_cons.id
-    LEFT JOIN terminal_stop_consignments AS ts_cons
-       ON ts.id = ts_cons.terminal_stop_id
+        -- Consumer and terminal consignments
+        LEFT JOIN consumer_stop_consignments AS from_cs_cons
+                  ON from_cs.id = from_cs_cons.consumer_stop_id
+        LEFT JOIN consumer_stop_consignments AS to_cs_cons
+                  ON to_cs.id = to_cs_cons.consumer_stop_id
+        LEFT JOIN consignments AS from_cons
+                  ON from_cs_cons.consignment_id = from_cons.id
+        LEFT JOIN consignments AS to_cons
+                  ON to_cs_cons.consignment_id = to_cons.id
+        LEFT JOIN terminal_stop_consignments AS ts_cons
+                  ON ts.id = ts_cons.terminal_stop_id
 
-    -- Service time for consumer and terminal stops
-    LEFT JOIN routeopt_service_time_data AS st_dt_cs
-       ON from_cs.id = st_dt_cs.consumer_stop_id
-    LEFT JOIN routeopt_service_time_data AS st_dt_cs_next
-       ON to_cs.id = st_dt_cs_next.consumer_stop_id
-    LEFT JOIN routeopt_service_time_data AS st_dt_ts
-       ON ts.id = st_dt_ts.terminal_stop_id
+        -- Service time for consumer and terminal stops
+        LEFT JOIN routeopt_service_time_data AS st_dt_cs
+                  ON from_cs.id = st_dt_cs.consumer_stop_id
+        LEFT JOIN routeopt_service_time_data AS st_dt_cs_next
+                  ON to_cs.id = st_dt_cs_next.consumer_stop_id
+        LEFT JOIN routeopt_service_time_data AS st_dt_ts
+                  ON ts.id = st_dt_ts.terminal_stop_id
 
-    -- Parcel consignments for terminal and consumer stops
-    LEFT JOIN parcel_consignments AS from_pc_cs
-       ON from_cs_cons.consignment_id = from_pc_cs.consignment_id
-    LEFT JOIN parcel_consignments AS to_pc_cs
-       ON to_cs_cons.consignment_id = to_pc_cs.consignment_id
-    LEFT JOIN parcel_consignments AS ts_pc
-       ON ts_cons.consignment_id = ts_pc.consignment_id
+        -- Parcel consignments for terminal and consumer stops
+        LEFT JOIN parcel_consignments AS from_pc_cs
+                  ON from_cs_cons.consignment_id = from_pc_cs.consignment_id
+        LEFT JOIN parcel_consignments AS to_pc_cs
+                  ON to_cs_cons.consignment_id = to_pc_cs.consignment_id
+        LEFT JOIN parcel_consignments AS ts_pc
+                  ON ts_cons.consignment_id = ts_pc.consignment_id
 
-    -- Parcel data with order id and type of delivery
-    LEFT JOIN parcels AS from_parcels_cs
-       ON from_pc_cs.parcel_id = from_parcels_cs.id
-    LEFT JOIN parcels AS to_parcels_cs
-       ON to_pc_cs.parcel_id = to_parcels_cs.id
+        -- Parcel data with order id and type of delivery
+        LEFT JOIN parcels AS from_parcels_cs
+                  ON from_pc_cs.parcel_id = from_parcels_cs.id
+        LEFT JOIN parcels AS to_parcels_cs
+                  ON to_pc_cs.parcel_id = to_parcels_cs.id
 
-    -- Parcel status update data. We look at parcel updates when the
-    -- type is DELIVERY and the scan code is either Delivered (3) or
-    -- Missed (8). If the parcel type is a RETURN then we look at
-    -- Collected (2) instead because at the consumer stop the driver
-    -- collects the package there (and missed if he fails).
-    LEFT JOIN parcel_status_updates AS from_psu_cs
-        ON from_cs_cons.consignment_id = from_psu_cs.consignment_id
-        AND DATE_FORMAT(from_psu_cs.date, "%Y-%m-%d") = r.due_date
-        AND ((from_psu_cs.parcel_status_id IN (3 , 8) AND from_parcels_cs.type = "DELIVERY")
-            OR (from_psu_cs.parcel_status_id IN (2 , 8) AND from_parcels_cs.type = "RETURN"))
-    LEFT JOIN parcel_status_updates AS to_pcu_cs
-        ON to_cs_cons.consignment_id = to_pcu_cs.consignment_id
-        AND DATE_FORMAT(to_pcu_cs.date, "%Y-%m-%d") = r.due_date
-        AND ((to_pcu_cs.parcel_status_id IN (3 , 8) AND to_parcels_cs.type = "DELIVERY")
-           OR (to_pcu_cs.parcel_status_id IN (2 , 8) AND to_parcels_cs.type = "RETURN"))
+        -- Parcel status update data. We look at parcel updates when the
+        -- type is DELIVERY and the scan code is either Delivered (3) or
+        -- Missed (8). If the parcel type is a RETURN then we look at
+        -- Collected (2) instead because at the consumer stop the driver
+        -- collects the package there (and missed if he fails).
+        LEFT JOIN parcel_status_updates AS from_psu_cs
+                  ON from_cs_cons.consignment_id = from_psu_cs.consignment_id
+                      AND DATE_FORMAT(from_psu_cs.date, "%Y-%m-%d") = r.due_date
+                      AND ((from_psu_cs.parcel_status_id IN (3 , 8) AND from_parcels_cs.type = "DELIVERY")
+                          OR (from_psu_cs.parcel_status_id IN (2 , 8) AND from_parcels_cs.type = "RETURN"))
+        LEFT JOIN parcel_status_updates AS to_pcu_cs
+                  ON to_cs_cons.consignment_id = to_pcu_cs.consignment_id
+                      AND DATE_FORMAT(to_pcu_cs.date, "%Y-%m-%d") = r.due_date
+                      AND ((to_pcu_cs.parcel_status_id IN (3 , 8) AND to_parcels_cs.type = "DELIVERY")
+                          OR (to_pcu_cs.parcel_status_id IN (2 , 8) AND to_parcels_cs.type = "RETURN"))
 
-    -- At the terminal we only want info on the first and last time
-    -- the driver loads or process any package that is to be used in
-    -- the route. This happens only at the terminal stops. When the
-    -- type of the parcel is DELIVERY we check the code Collected (2)
-    -- that means driver loads it in the car. If the parcel type is
-    -- RETURN then we check that the driver has Collected the
-    -- receiving label (status 10).
-    LEFT JOIN parcels AS ts_parcels
-        ON ts_pc.parcel_id = ts_parcels.id
-    LEFT JOIN parcel_status_updates AS psu_ts
-        ON ts_cons.consignment_id = psu_ts.consignment_id
-        AND ((psu_ts.parcel_status_id = 2 AND ts_parcels.type = "DELIVERY" )
-        OR (psu_ts.parcel_status_id = 10 AND ts_parcels.type = "RETURN"))
+        -- At the terminal we only want info on the first and last time
+        -- the driver loads or process any package that is to be used in
+        -- the route. This happens only at the terminal stops. When the
+        -- type of the parcel is DELIVERY we check the code Collected (2)
+        -- that means driver loads it in the car. If the parcel type is
+        -- RETURN then we check that the driver has Collected the
+        -- receiving label (status 10).
+        LEFT JOIN parcels AS ts_parcels
+                  ON ts_pc.parcel_id = ts_parcels.id
+        LEFT JOIN parcel_status_updates AS psu_ts
+                  ON ts_cons.consignment_id = psu_ts.consignment_id
+                      AND ((psu_ts.parcel_status_id = 2 AND ts_parcels.type = "DELIVERY" )
+                          OR (psu_ts.parcel_status_id = 10 AND ts_parcels.type = "RETURN"))
 
 WHERE
-    r.type = "DISTRIBUTION"
-    AND r.due_date BETWEEN :from_date AND :to_date
-GROUP BY r.id, ts.id, from_cs.id, to_cs.id
-ORDER BY r.id, from_cs_last_processed, from_sequence"""
+        r.type = "DISTRIBUTION"
+  AND r.due_date >= DATE_ADD(CURRENT_DATE, INTERVAL -1 MONTH)
+GROUP BY r.id, ts.id, from_cs.id, to_cs.id"""
 
 df_raw2 = readJDBC(query2, 'budbee')
 
 # COMMAND ----------
 
 ## TRANSFORM
-
+df_raw.cache()
 df_lag = df_raw.withColumn('prev_stop_id',
-                        F.lag(df_raw['stop_id'])
-                                 .over(W.partitionBy("route_id").orderBy("sequence_stop"))).cache()
+                        F.lag(df_raw.stop_id)
+                                 .over(W.partitionBy("route_id").orderBy("sequence_stop")))
 
 df_raw_stop_info = df_raw.drop('route_id','route_date','route_type','terminal','planned_departure_cet', 'country_code')
 
