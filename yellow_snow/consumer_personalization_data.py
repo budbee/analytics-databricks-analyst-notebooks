@@ -14,18 +14,22 @@
 # Extract consumer with app
 query = """
 select c.consumer_id,
-       b.external_name as merchant_name,
+       o.external_name as merchant_name,
        o.id as order_id,
        pcz.country_code,
        p.id as parcel_id
-FROM consumers.consumer c
-    JOIN consumers.consumer_order co ON c.id = co.consumer_id
-    JOIN budbee.orders o use index(IDX_order_created_at) ON co.order_id = o.id
-    JOIN buyers b on o.buyer_id = b.id
+ FROM  
+     (SELECT orders.id, 
+             b.external_name, 
+             orders.delivery_postal_code_zone_id 
+         FROM budbee.orders use index(IDX_order_created_at)
+            JOIN budbee.buyers b on buyer_id = b.id
+         WHERE orders.created_at >= ADDDATE(current_date,INTERVAL -6 MONTH)
+            AND b.deleted_at IS NULL) o
+    JOIN consumers.consumer_order co ON o.id = co.order_id
+    JOIN consumers.consumer c ON co.consumer_id = c.id
     JOIN budbee.postal_code_zones pcz ON o.delivery_postal_code_zone_id = pcz.id
-    JOIN parcels p on o.id = p.order_id
-WHERE o.created_at >= ADDDATE(current_date,INTERVAL -6 MONTH)
-    AND b.deleted_at IS NULL
+    JOIN budbee.parcels p on o.id = p.order_id
 """
 
 
