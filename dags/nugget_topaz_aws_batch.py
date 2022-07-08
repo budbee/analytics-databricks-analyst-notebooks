@@ -40,7 +40,7 @@ with DAG(
               {"name":"JOB_NAME", "value":job_name},
               {"name":"TAP_SCHEMA", "value":tap_schema},
               {"name":"TAP_DB", "value":tap_db},
-              {"name":"TARGET_SCHEMA", "value":target_scheam},
+              {"name":"TARGET_SCHEMA", "value":target_schema},
               {"name":"TARGET_DB", "value":target_db},
               {"name":"TAP_TABLE", "value":table_name},
               {"name":"BATCH_SIZE", "value":batch_size},
