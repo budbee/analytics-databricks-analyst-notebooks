@@ -53,6 +53,7 @@ with DAG(
   )
 
   addresses = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "addresses",
     job_name = "topaz_addresses",
     job_queue = "BatchEfsJQ",
@@ -61,6 +62,7 @@ with DAG(
     )
 
   cancellations = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "cancellations",
     job_name = "topaz_cancellations",
     job_queue = "BatchEfsJQ",
@@ -69,6 +71,7 @@ with DAG(
     )
 
   consignments = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "consignments",
     job_name = "topaz_consignments",
     job_queue = "BatchEfsJQ",
@@ -77,6 +80,7 @@ with DAG(
     )
 
   consumer_stop_consignments = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "consumer_stop_consignments",
     job_name = "topaz_consumer_stop_consignments",
     job_queue = "BatchEfsJQ",
@@ -85,6 +89,7 @@ with DAG(
     )
 
   consumer_stops = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "consumer_stops",
     job_name = "topaz_consumer_stops",
     job_queue = "BatchEfsJQ",
@@ -93,6 +98,7 @@ with DAG(
     )
 
   dimensions = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "dimensions",
     job_name = "topaz_dimensions",
     job_queue = "BatchEfsJQ",
@@ -101,6 +107,7 @@ with DAG(
     )
 
   intervals = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "intervals",
     job_name = "topaz_intervals",
     job_queue = "BatchEfsJQ",
@@ -109,6 +116,7 @@ with DAG(
     )
 
   klarna_payments = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "klarna_payments",
     job_name = "topaz_klarna_payments",
     job_queue = "BatchEfsJQ",
@@ -117,6 +125,7 @@ with DAG(
     )
 
   locker_consignments = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "locker_consignments",
     job_name = "topaz_locker_consignments",
     job_queue = "BatchEfsJQ",
@@ -125,6 +134,7 @@ with DAG(
     )
 
   locker_pallet_parcels = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "locker_pallet_parcels",
     job_name = "topaz_locker_pallet_parcels",
     job_queue = "BatchEfsJQ",
@@ -133,6 +143,7 @@ with DAG(
     )
 
   locker_stops = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "locker_stops",
     job_name = "topaz_locker_stops",
     job_queue = "BatchEfsJQ",
@@ -141,6 +152,7 @@ with DAG(
     )
 
   misses = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "misses",
     job_name = "topaz_misses",
     job_queue = "BatchEfsJQ",
@@ -149,6 +161,7 @@ with DAG(
     )
 
   orders = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "orders",
     job_name = "topaz_orders",
     job_queue = "BatchEfsJQ",
@@ -157,6 +170,7 @@ with DAG(
     )
 
   pallet_parcels = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "pallet_parcels",
     job_name = "topaz_pallet_parcels",
     job_queue = "BatchEfsJQ",
@@ -165,6 +179,7 @@ with DAG(
     )
 
   parcel_box_assignments = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "parcel_box_assignments",
     job_name = "topaz_parcel_box_assignments",
     job_queue = "BatchEfsJQ",
@@ -173,6 +188,7 @@ with DAG(
     )
 
   parcel_consignments = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "parcel_consignments",
     job_name = "topaz_parcel_consignments",
     job_queue = "BatchEfsJQ",
@@ -181,6 +197,7 @@ with DAG(
     )
 
   parcel_status_updates = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "parcel_status_updates",
     job_name = "topaz_parcel_status_updates",
     job_queue = "BatchEfsJQ",
@@ -189,6 +206,7 @@ with DAG(
     )
 
   parcels = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "parcels",
     job_name = "topaz_parcels",
     job_queue = "BatchEfsJQ",
@@ -197,6 +215,7 @@ with DAG(
     )
 
   ratings = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "ratings",
     job_name = "topaz_ratings",
     job_queue = "BatchEfsJQ",
@@ -205,6 +224,7 @@ with DAG(
     )
 
   routeopt_routes = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "routeopt_routes",
     job_name = "topaz_routeopt_routes",
     job_queue = "BatchEfsJQ",
@@ -213,6 +233,7 @@ with DAG(
     )
 
   scanning_log = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "scanning_log",
     job_name = "topaz_scanning_log",
     job_queue = "BatchEfsJQ",
@@ -221,6 +242,7 @@ with DAG(
     )
 
   terminal_stop_consignments = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "terminal_stop_consignments",
     job_name = "topaz_terminal_stop_consignments",
     job_queue = "BatchEfsJQ",
@@ -229,6 +251,7 @@ with DAG(
     )
 
   terminal_stops = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "terminal_stops",
     job_name = "topaz_terminal_stops",
     job_queue = "BatchEfsJQ",
@@ -237,6 +260,7 @@ with DAG(
     )
 
   timestamps = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "timestamps",
     job_name = "topaz_timestamps",
     job_queue = "BatchEfsJQ",
@@ -246,6 +270,7 @@ with DAG(
 
   # Consumer schema
   consumer_timeslotSubscription = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "consumer_timeslotSubscription",
     job_name = "topaz_consumer_timeslotSubscription",
     job_queue = "BatchEfsJQ",
@@ -254,6 +279,7 @@ with DAG(
     )
 
   consumer_order = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "consumer_order",
     job_name = "topaz_consumer_order",
     job_queue = "BatchEfsJQ",
@@ -263,6 +289,7 @@ with DAG(
 
   # Small tables
   small_1 = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "small_1",
     job_name = "topaz_small_1",
     job_queue = "BatchEfsJQ",
@@ -271,6 +298,7 @@ with DAG(
     )
 
   small_2 = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "small_2",
     job_name = "topaz_small_2",
     job_queue = "BatchEfsJQ",
@@ -279,6 +307,7 @@ with DAG(
     )
 
   small_3 = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "small_3",
     job_name = "topaz_small_3",
     job_queue = "BatchEfsJQ",
@@ -287,6 +316,7 @@ with DAG(
     )
 
   small_4 = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "small_4",
     job_name = "topaz_small_4",
     job_queue = "BatchEfsJQ",
@@ -295,6 +325,7 @@ with DAG(
     )
 
   small_5 = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "small_5",
     job_name = "topaz_small_5",
     job_queue = "BatchEfsJQ",
@@ -303,6 +334,7 @@ with DAG(
     )
 
   small_6 = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "small_6",
     job_name = "topaz_small_6",
     job_queue = "BatchEfsJQ",
@@ -311,6 +343,7 @@ with DAG(
     )
 
   small_7 = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "small_7",
     job_name = "topaz_small_7",
     job_queue = "BatchEfsJQ",
@@ -319,6 +352,7 @@ with DAG(
     )
 
   small_8 = BatchOperator(
+    region_name = "eu-west-1",
     task_id = "small_8",
     job_name = "topaz_small_8",
     job_queue = "BatchEfsJQ",
