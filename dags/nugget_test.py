@@ -6,7 +6,7 @@ from lib import slack_notifications
 
 
 with DAG(
- "topaz_nugget",
+ "test_nugget",
   default_args = {
     "depends_on_past": False,
     "owner": "Analytics team",
