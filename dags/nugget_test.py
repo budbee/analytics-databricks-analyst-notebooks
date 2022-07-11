@@ -2,7 +2,6 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.providers.amazon.aws.operators.batch import BatchOperator
 from airflow.operators.dummy import DummyOperator
-from lib import slack_notifications
 
 
 with DAG(
@@ -11,13 +10,12 @@ with DAG(
     "depends_on_past": False,
     "owner": "Analytics team",
     "email": ["ji.krochmal@budbee.com"],
-    "email_on_failure": True,
+    "email_on_failure": False,
     "email_on_retry": False,
     "retries": 0,
     "retry_delay": timedelta(minutes=60),
     "max_active_runs": 1,
     "concurrency": 1,
-    "on_failure_callback": slack_notifications.dag_failure
   },
   description="Puts AWS Batch jobs on a dedicated job queue",
   schedule_interval='0 6-22 * * *',
