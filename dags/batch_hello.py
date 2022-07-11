@@ -31,12 +31,13 @@ with DAG(
 
   hello_world = BatchOperator(
     task_id = "hello_world",
+    region_name = "eu-west-1",
     job_name = "topaz_hello_world",
     job_queue = "BatchEfsJQ",
     job_definition = "helloworld",
     overrides = {}
-    )
+  )
 
 task_start >> [
-hello_world
+  hello_world
 ]
