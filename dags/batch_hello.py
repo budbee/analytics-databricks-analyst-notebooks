@@ -34,8 +34,9 @@ with DAG(
     job_name = "topaz_hello_world",
     job_queue = "BatchEfsJQ",
     job_definition = "helloworld",
+    overrides = {}
     )
 
-tasl_start >> [
+task_start >> [
 hello_world
 ]
