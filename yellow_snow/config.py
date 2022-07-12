@@ -27,7 +27,7 @@ def writeSnowflake(df, tablename, db="dw_dev", schema="topaz"):
     .options(**sf_options) \
     .option("dbtable", tablename) \
     .option("sfDatabase", db) \
-    .option("sdSchema", schema)
+    .option("sfSchema", schema) \
     .mode("overwrite") \
     .save()
 
